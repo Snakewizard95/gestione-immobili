@@ -6,6 +6,27 @@ import { CONFIG } from '../config'
 
 const API = 'https://api.github.com'
 
+/**
+ * MODALITÀ DIMOSTRATIVA: se il token cifrato non è ancora configurato, l'app funziona in locale
+ * salvando i dati nel browser (localStorage) invece che su GitHub. Serve per provare le
+ * schermate prima della pubblicazione. Nessun dato lascia il computer.
+ */
+export const TOKEN_DEMO = 'DEMO'
+export const MODO_DEMO = !CONFIG.tokenCifrato.dati
+const PREFISSO_DEMO = 'gestione-immobili.demo.'
+
+function demoLeggi(percorso: string): FileLetto | null {
+  const raw = localStorage.getItem(PREFISSO_DEMO + percorso)
+  return raw ? { contenuto: raw, sha: String(raw.length) + ':' + percorso } : null
+}
+function demoScrivi(percorso: string, contenuto: string, messaggio: string): string {
+  localStorage.setItem(PREFISSO_DEMO + percorso, contenuto)
+  const commits = JSON.parse(localStorage.getItem(PREFISSO_DEMO + '_commits') ?? '[]') as Commit[]
+  commits.unshift({ sha: crypto.randomUUID(), messaggio, data: new Date().toISOString(), autore: messaggio.split(':')[0] })
+  localStorage.setItem(PREFISSO_DEMO + '_commits', JSON.stringify(commits.slice(0, 200)))
+  return String(contenuto.length) + ':' + percorso
+}
+
 export class ErroreGitHub extends Error {
   stato: number
   conflitto: boolean
@@ -70,6 +91,7 @@ async function richiesta(token: string, percorso: string, init: RequestInit = {}
 
 /** Verifica che il token permetta di leggere il repository dati. Restituisce il nome del repo. */
 export async function verificaAccesso(token: string): Promise<string> {
+  if (token === TOKEN_DEMO) return 'modalità dimostrativa (dati solo in questo browser)'
   const r = await richiesta(token, '')
   const dati = (await r.json()) as { full_name: string; permissions?: { push?: boolean } }
   if (dati.permissions && dati.permissions.push === false) {
@@ -96,6 +118,7 @@ function codificaBase64(bytes: Uint8Array): string {
 
 /** Legge un file di testo (JSON) con il suo SHA. Restituisce null se non esiste. */
 export async function leggiFile(token: string, percorso: string): Promise<FileLetto | null> {
+  if (token === TOKEN_DEMO) return demoLeggi(percorso)
   let r: Response
   try {
     r = await richiesta(token, `/contents/${percorso}?ref=${CONFIG.ramo}`)
@@ -118,6 +141,7 @@ export async function leggiFile(token: string, percorso: string): Promise<FileLe
  * con `conflitto = true`.
  */
 export async function scriviFile(token: string, percorso: string, contenuto: string, messaggio: string, sha?: string): Promise<string> {
+  if (token === TOKEN_DEMO) return demoScrivi(percorso, contenuto, messaggio)
   const corpo = {
     message: messaggio,
     content: codificaBase64(new TextEncoder().encode(contenuto)),
@@ -132,6 +156,7 @@ export async function scriviFile(token: string, percorso: string, contenuto: str
 /** Carica un allegato binario. Restituisce lo SHA del blob. */
 export async function caricaAllegato(token: string, percorso: string, file: Blob, messaggio: string): Promise<string> {
   const bytes = new Uint8Array(await file.arrayBuffer())
+  if (token === TOKEN_DEMO) return demoScrivi(percorso, 'data:' + file.type + ';base64,' + codificaBase64(bytes), messaggio)
   const corpo = { message: messaggio, content: codificaBase64(bytes), branch: CONFIG.ramo }
   const r = await richiesta(token, `/contents/${percorso}`, { method: 'PUT', body: JSON.stringify(corpo) })
   const dati = (await r.json()) as { content: { sha: string } }
@@ -140,6 +165,11 @@ export async function caricaAllegato(token: string, percorso: string, file: Blob
 
 /** Scarica un allegato come Blob (qualunque dimensione fino a 100 MB). */
 export async function scaricaAllegato(token: string, percorso: string): Promise<Blob> {
+  if (token === TOKEN_DEMO) {
+    const f = demoLeggi(percorso)
+    if (!f) throw new ErroreGitHub('Allegato non trovato.', 404)
+    return (await fetch(f.contenuto)).blob()
+  }
   const meta = await richiesta(token, `/contents/${percorso}?ref=${CONFIG.ramo}`)
   const { sha } = (await meta.json()) as { sha: string }
   const blob = await richiesta(token, `/git/blobs/${sha}`, {}, 'application/vnd.github.raw+json')
@@ -148,6 +178,7 @@ export async function scaricaAllegato(token: string, percorso: string): Promise<
 
 /** Elimina fisicamente un file (usato solo per allegati caricati per errore). */
 export async function eliminaFile(token: string, percorso: string, sha: string, messaggio: string): Promise<void> {
+  if (token === TOKEN_DEMO) { localStorage.removeItem(PREFISSO_DEMO + percorso); demoScrivi('_eliminazioni', sha, messaggio); return }
   await richiesta(token, `/contents/${percorso}`, {
     method: 'DELETE',
     body: JSON.stringify({ message: messaggio, sha, branch: CONFIG.ramo }),
@@ -156,6 +187,7 @@ export async function eliminaFile(token: string, percorso: string, sha: string, 
 
 /** Elenco degli ultimi commit (storico modifiche), opzionalmente filtrato per percorso. */
 export async function listaCommit(token: string, percorso?: string, quanti = 50): Promise<Commit[]> {
+  if (token === TOKEN_DEMO) return (JSON.parse(localStorage.getItem(PREFISSO_DEMO + '_commits') ?? '[]') as Commit[]).slice(0, quanti)
   const q = new URLSearchParams({ sha: CONFIG.ramo, per_page: String(quanti) })
   if (percorso) q.set('path', percorso)
   const r = await richiesta(token, `/commits?${q.toString()}`)

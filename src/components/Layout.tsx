@@ -6,6 +6,7 @@ import {
 import { useSessione } from '../lib/sessione'
 import { giorniAllaScadenza } from '../lib/auth'
 import { CONFIG } from '../config'
+import { MODO_DEMO } from '../lib/github'
 
 const VOCI = [
   { a: '/', testo: 'Dashboard', Icona: Home },
@@ -86,6 +87,11 @@ export default function Layout({ children }: { children: ReactNode }) {
 
       {/* Contenuto */}
       <main className="flex-1 md:ml-64 p-4 md:p-8">
+        {MODO_DEMO && (
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
+            Modalità dimostrativa: i dati restano solo in questo browser e non vengono inviati a GitHub.
+          </div>
+        )}
         {avvisoToken && (
           <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             {giorni! < 0

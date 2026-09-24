@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { CONFIG } from '../config'
 import { decifraToken, type TokenCifrato } from '../lib/auth'
-import { verificaAccesso } from '../lib/github'
+import { MODO_DEMO, TOKEN_DEMO, verificaAccesso } from '../lib/github'
 import { useSessione } from '../lib/sessione'
 
 export default function Login() {
@@ -22,9 +22,9 @@ export default function Login() {
     setInCorso(true)
     try {
       const blocco = CONFIG.tokenCifrato as TokenCifrato
-      const token = await decifraToken(blocco, password)
+      const token = MODO_DEMO ? TOKEN_DEMO : await decifraToken(blocco, password)
       await verificaAccesso(token)
-      accedi({ token, nome: nome.trim(), scadenzaToken: blocco.scadenza_token, accessoIl: new Date().toISOString() })
+      accedi({ token, nome: nome.trim(), scadenzaToken: MODO_DEMO ? null : blocco.scadenza_token, accessoIl: new Date().toISOString() })
       navigate('/')
     } catch (err) {
       setErrore((err as Error).message)
@@ -51,6 +51,11 @@ export default function Login() {
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2" />
         </label>
 
+        {MODO_DEMO && (
+          <div className="mt-4 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
+            <strong>Modalità dimostrativa.</strong> Il token GitHub non è ancora configurato: i dati vengono salvati solo in questo browser. Qualsiasi password è accettata.
+          </div>
+        )}
         {errore && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errore}</div>}
 
         <button type="submit" disabled={inCorso}
