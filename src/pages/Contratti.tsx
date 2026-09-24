@@ -7,7 +7,7 @@ import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Tabell
 import { useSessioneAttiva } from '../lib/sessione'
 import { aggiorna, attivi, campiModifica, campiNuovo } from '../lib/store'
 import {
-  MODALITA_REGISTRAZIONE, PERIODICITA, REGIMI_IVA, SI_NO, STATI_CONTRATTO, TIPOLOGIE_CONTRATTO, etichettaDi,
+  MODALITA_REGISTRAZIONE, PERIODICITA, REGIMI_IVA, SI_NO, STATI_CONTRATTO, TIPOLOGIE_CONTRATTO, etichettaDi, statoIva,
   type Conduttore, type Contratto, type Immobile, type Societa,
 } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
@@ -17,7 +17,7 @@ const VUOTO: Partial<Contratto> = {
   immobile_id: '', conduttore_id: '', tipologia: '', stato: 'attivo', data_sottoscrizione: '', data_decorrenza: '', durata_anni: null,
   prima_scadenza: '', rinnovo_automatico: 'si', preavviso_mesi: 6, data_cessazione: '', motivo_cessazione: '',
   canone_mensile_cent: null, canone_annuale_cent: null, periodicita: 'mensile', giorno_scadenza: 5,
-  deposito_cent: null, deposito_modalita: '', deposito_restituito_il: '', regime_iva: '',
+  deposito_cent: null, deposito_modalita: '', deposito_restituito_il: '', regime_iva: '', iva_percento: 22,
   istat_attivo: 'si', istat_percentuale: 75, istat_mese: '',
   reg_data: '', reg_ufficio: '', reg_codice: '', reg_modalita: '', reg_imposta_cent: null, reg_quota_conduttore_cent: null,
   imposta_registro_annuale_cent: null, note: '',
@@ -61,6 +61,8 @@ export default function PaginaContratti() {
       opzioni: immobili.map((i) => ({ valore: i.id, etichetta: `${i.indirizzo} — ${societa.find((s) => s.id === i.societa_id)?.ragione_sociale ?? ''}` })) },
     { nome: 'conduttore_id', etichetta: 'Conduttore', tipo: 'select', obbligatorio: true, opzioni: conduttori.map((c) => ({ valore: c.id, etichetta: c.denominazione })) },
     { nome: 'stato', etichetta: 'Stato', tipo: 'select', opzioni: STATI_CONTRATTO, obbligatorio: true },
+    { nome: 'regime_iva', etichetta: 'Canone soggetto a IVA?', tipo: 'select', opzioni: REGIMI_IVA, obbligatorio: true, aiuto: 'Vale per tutte le sezioni: pagamenti, imposta di registro, riepiloghi' },
+    { nome: 'iva_percento', etichetta: 'Aliquota IVA (%)', tipo: 'numero', aiuto: 'Solo se soggetto a IVA (di norma 22)' },
     { nome: 'tipologia', etichetta: 'Tipologia contratto', tipo: 'select', opzioni: TIPOLOGIE_CONTRATTO, sezione: 'Durata e scadenze' },
     { nome: 'data_sottoscrizione', etichetta: 'Data sottoscrizione', tipo: 'data' },
     { nome: 'data_decorrenza', etichetta: 'Decorrenza', tipo: 'data' },
@@ -74,7 +76,6 @@ export default function PaginaContratti() {
     { nome: 'canone_annuale_cent', etichetta: 'Canone annuale', tipo: 'euro', aiuto: 'Calcolato ×12, modificabile' },
     { nome: 'periodicita', etichetta: 'Periodicità pagamento', tipo: 'select', opzioni: PERIODICITA },
     { nome: 'giorno_scadenza', etichetta: 'Giorno di scadenza pagamento', tipo: 'numero' },
-    { nome: 'regime_iva', etichetta: 'Regime IVA', tipo: 'select', opzioni: REGIMI_IVA },
     { nome: 'deposito_cent', etichetta: 'Deposito cauzionale / caparra', tipo: 'euro', sezione: 'Deposito cauzionale' },
     { nome: 'deposito_modalita', etichetta: 'Modalità (bonifico, fideiussione…)', tipo: 'testo' },
     { nome: 'deposito_restituito_il', etichetta: 'Restituito il', tipo: 'data' },
@@ -135,6 +136,7 @@ export default function PaginaContratti() {
               { chiave: 'imm', etichetta: 'Immobile', render: (c) => <span className="font-medium">{immobile(c.immobile_id)?.indirizzo ?? '—'}</span> },
               { chiave: 'con', etichetta: 'Conduttore', render: (c) => conduttore(c.conduttore_id) },
               { chiave: 'tip', etichetta: 'Tipologia', render: (c) => etichettaDi(TIPOLOGIE_CONTRATTO, c.tipologia) },
+              { chiave: 'iva', etichetta: 'IVA', render: (c) => { const s = statoIva(c); return <Etichetta tono={s.tono}>{s.testo}</Etichetta> } },
               { chiave: 'mens', etichetta: 'Canone mensile', allinea: 'dx', render: (c) => formattaEuro(c.canone_mensile_cent) },
               { chiave: 'ann', etichetta: 'Canone annuale', allinea: 'dx', render: (c) => formattaEuro(c.canone_annuale_cent) },
               { chiave: 'dec', etichetta: 'Decorrenza', render: (c) => formattaData(c.data_decorrenza) },

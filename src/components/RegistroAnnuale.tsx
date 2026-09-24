@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useSessioneAttiva } from '../lib/sessione'
 import { aggiorna, attivi, campiModifica, campiNuovo } from '../lib/store'
-import { SI_NO, type Allegato, type Annualita, type Contratto, type Opzione } from '../lib/tipi'
+import { SI_NO, TIPOLOGIE_CONTRATTO, etichettaDi, statoIva, type Allegato, type Annualita, type Contratto, type Opzione } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaData, formattaEuro } from '../lib/utils/formato'
 import Allegati from './Allegati'
@@ -150,6 +150,12 @@ export default function RegistroAnnuale({ contratto, descrizione }: Props) {
 
   return (
     <div>
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+        <Etichetta tono={statoIva(contratto).tono}>{statoIva(contratto).testo}</Etichetta>
+        <Etichetta>{etichettaDi(TIPOLOGIE_CONTRATTO, contratto.tipologia)}</Etichetta>
+        <span className="text-gray-500">Decorrenza {formattaData(contratto.data_decorrenza)} · canone mensile {formattaEuro(contratto.canone_mensile_cent)}</span>
+        {statoIva(contratto).soggetto && <span className="text-gray-500">· imposta di registro proposta all'1% (locatore IVA, uso diverso)</span>}
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-500">Una riga per ogni annualità: ISTAT sul canone mensile, imposta di registro pagata e rimborso del conduttore, con le ricevute allegate.</p>
         <Bottone onClick={() => setAperta(nuova())}><span className="flex items-center gap-1"><Plus size={16} /> Aggiungi annualità</span></Bottone>

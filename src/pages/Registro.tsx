@@ -9,7 +9,7 @@ import { ChevronDown, ChevronRight, Info } from 'lucide-react'
 import RegistroAnnuale from '../components/RegistroAnnuale'
 import { Avviso, BarraRicerca, Caricamento, Etichetta, Finestra, Tabella, filtraTesto } from '../components/ui'
 import { attivi } from '../lib/store'
-import { TIPOLOGIE_CONTRATTO, etichettaDi, type Annualita, type Conduttore, type Contratto, type Immobile, type Societa } from '../lib/tipi'
+import { TIPOLOGIE_CONTRATTO, etichettaDi, statoIva, type Annualita, type Conduttore, type Contratto, type Immobile, type Societa } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaData, formattaEuro } from '../lib/utils/formato'
 
@@ -106,6 +106,7 @@ export default function PaginaRegistro() {
     { chiave: 'imm', etichetta: 'Immobile', render: (r: RigaContratto) => <span className="font-medium">{r.immobile}</span> },
     { chiave: 'con', etichetta: 'Conduttore', render: (r: RigaContratto) => r.conduttore },
     { chiave: 'tip', etichetta: 'Tipo contratto', render: (r: RigaContratto) => etichettaDi(TIPOLOGIE_CONTRATTO, r.tipologia) },
+    { chiave: 'iva', etichetta: 'IVA', render: (r: RigaContratto) => { const s = statoIva(r); return <Etichetta tono={s.tono}>{s.testo}</Etichetta> } },
     { chiave: 'dec', etichetta: 'Decorrenza', render: (r: RigaContratto) => formattaData(r.data_decorrenza) },
     { chiave: 'men', etichetta: 'Canone mensile', allinea: 'dx' as const, render: (r: RigaContratto) => formattaEuro(r.canone_mensile_cent) },
     { chiave: 'ann', etichetta: 'Annualità registrate', allinea: 'dx' as const, render: (r: RigaContratto) => r.nAnnualita ? `${r.nAnnualita} (ultima ${r.ultimoAnno})` : <span className="text-gray-400">nessuna</span> },

@@ -75,7 +75,7 @@ export const PERIODICITA: Opzione[] = [
   { valore: 'mensile', etichetta: 'Mensile' }, { valore: 'bimestrale', etichetta: 'Bimestrale' }, { valore: 'trimestrale', etichetta: 'Trimestrale' },
   { valore: 'semestrale', etichetta: 'Semestrale' }, { valore: 'annuale', etichetta: 'Annuale' },
 ]
-export const REGIMI_IVA: Opzione[] = [{ valore: 'esente', etichetta: 'Esente IVA' }, { valore: 'con_iva', etichetta: 'Con IVA (opzione)' }]
+export const REGIMI_IVA: Opzione[] = [{ valore: 'con_iva', etichetta: 'Sì: canone soggetto a IVA' }, { valore: 'esente', etichetta: 'No: esente / fuori campo IVA' }]
 export const MODALITA_REGISTRAZIONE: Opzione[] = [{ valore: 'rli', etichetta: 'RLI telematico' }, { valore: 'f24_elide', etichetta: 'F24 Elide' }]
 export const SI_NO: Opzione[] = [{ valore: 'si', etichetta: 'Sì' }, { valore: 'no', etichetta: 'No' }]
 
@@ -99,7 +99,8 @@ export interface Contratto extends RecordBase {
   deposito_cent: number | null
   deposito_modalita: string
   deposito_restituito_il: string
-  regime_iva: string
+  regime_iva: string          // con_iva | esente  (flag IVA del contratto, usato in tutte le sezioni)
+  iva_percento: number | null // aliquota IVA se soggetto (di norma 22)
   istat_attivo: string
   istat_percentuale: number | null
   istat_mese: string
@@ -164,6 +165,13 @@ export interface Allegato extends RecordBase {
   dimensione_byte: number
   tipo_mime: string
   note: string
+}
+
+/** Stato IVA di un contratto, per mostrarlo allo stesso modo in tutte le sezioni. */
+export function statoIva(c: Pick<Contratto, 'regime_iva' | 'iva_percento'> | null | undefined): { testo: string; tono: 'blu' | 'grigio' | 'giallo'; soggetto: boolean } {
+  if (!c || !c.regime_iva) return { testo: 'IVA da indicare', tono: 'giallo', soggetto: false }
+  if (c.regime_iva === 'con_iva') return { testo: `IVA ${c.iva_percento ?? 22}%`, tono: 'blu', soggetto: true }
+  return { testo: 'No IVA', tono: 'grigio', soggetto: false }
 }
 
 export function etichettaDi(opzioni: Opzione[], valore: string | null | undefined): string {
