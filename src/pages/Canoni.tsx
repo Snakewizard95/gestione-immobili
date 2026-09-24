@@ -6,18 +6,21 @@
  * registro, depositi, altro) con filtri e totali.
  */
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, Eye, EyeOff, Plus } from 'lucide-react'
 import Allegati from '../components/Allegati'
 import Modulo, { type CampoDef } from '../components/Modulo'
 import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Tabella, filtraTesto } from '../components/ui'
 import { useSessioneAttiva } from '../lib/sessione'
 import { aggiorna, attivi, campiModifica, campiNuovo } from '../lib/store'
-import { MODALITA_INCASSO, STATI_MOVIMENTO, TIPI_MOVIMENTO, etichettaDi, statoIva, type Conduttore, type Contratto, type Immobile, type Movimento, type Societa } from '../lib/tipi'
+import { canoneMensilePer, descriviCanone, scaglioniAnno } from '../lib/canone'
+import { MODALITA_INCASSO, STATI_MOVIMENTO, TIPI_MOVIMENTO, etichettaDi, statoIva, type Annualita, type Conduttore, type Contratto, type Immobile, type Movimento, type Societa } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaData, formattaEuro } from '../lib/utils/formato'
 
 const MESI = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic']
 const r0 = (n: number) => Math.round(n)
+/** Importo compatto per le celle: "1.220" oppure "1.220,50" */
+const compatto = (cent: number | null | undefined) => cent == null ? '' : (cent % 100 === 0 ? (cent / 100).toLocaleString('it-IT') : (cent / 100).toLocaleString('it-IT', { minimumFractionDigits: 2 }))
 
 function calcolaIva(v: Partial<Movimento>): Partial<Movimento> {
   if (v.imponibile_cent == null) return {}
@@ -41,19 +44,21 @@ type Cella = { contratto: Contratto; mese: string; movimento: Movimento | null }
 
 export default function PaginaCanoni() {
   const { token, nome } = useSessioneAttiva()
-  const { dati, caricamento, errore } = useCollezioni(['movimenti', 'contratti', 'immobili', 'conduttori', 'societa', 'allegati'])
+  const { dati, caricamento, errore } = useCollezioni(['movimenti', 'contratti', 'immobili', 'conduttori', 'societa', 'allegati', 'annualita'])
   const [scheda, setScheda] = useState<'griglia' | 'elenco'>('griglia')
   const [anno, setAnno] = useState(new Date().getFullYear())
   const [ricerca, setRicerca] = useState('')
   const [filtroStato, setFiltroStato] = useState('')
   const [aperto, setAperto] = useState<Partial<Movimento> | null>(null)
   const [chiusi, setChiusi] = useState<Set<string>>(new Set())
+  const [mostraNascosti, setMostraNascosti] = useState(false)
 
   const movimenti = attivi(dati<Movimento>('movimenti'))
   const contratti = attivi(dati<Contratto>('contratti'))
   const immobili = attivi(dati<Immobile>('immobili'))
   const conduttori = attivi(dati<Conduttore>('conduttori'))
   const societa = attivi(dati<Societa>('societa'))
+  const annualita = attivi(dati<Annualita>('annualita'))
 
   const descrivi = (c: Contratto | undefined) => {
     const imm = immobili.find((i) => i.id === c?.immobile_id)
@@ -63,10 +68,10 @@ export default function PaginaCanoni() {
 
   /** Nuovo movimento "canone" per un contratto e un mese, precompilato dal contratto (canone mensile + IVA). */
   function nuovoCanone(c: Contratto, mese: string): Partial<Movimento> {
-    const iva = statoIva(c).soggetto ? (c.iva_percento ?? 22) : 0
+    const k = canoneMensilePer(c, annualita, mese)
     const base: Partial<Movimento> = {
       contratto_id: c.id, tipo: 'canone', competenza: mese, descrizione: `Canone ${MESI[Number(mese.slice(5, 7)) - 1]} ${mese.slice(0, 4)}`,
-      imponibile_cent: c.canone_mensile_cent, iva_percento: iva, incassato_cent: null, data_incasso: '', modalita: 'bonifico',
+      imponibile_cent: k.imponibile_cent, iva_percento: k.iva_percento, incassato_cent: null, data_incasso: '', modalita: 'bonifico',
       numero_fattura: '', data_fattura: '', stato: 'da_incassare', note: '',
     }
     return { ...base, ...calcolaIva(base) }
@@ -109,8 +114,15 @@ export default function PaginaCanoni() {
     setAperto(null)
   }
 
+  async function impostaGestione(c: Contratto, valore: 'si' | 'no') {
+    const d = descrivi(c)
+    await aggiorna<Contratto>(token, 'contratti', (r) => r.map((x) => (x.id === c.id ? { ...x, gestione_incassi: valore, ...campiModifica(nome) } : x)),
+      `${nome}: ${valore === 'no' ? 'nasconde dagli incassi' : 'mostra negli incassi'} ${d.immobile} / ${d.conduttore}`)
+  }
+
   // ---- Griglia mensile ----
-  const attiviC = filtraTesto(contratti.filter((c) => c.stato !== 'cessato').map((c) => ({ ...c, ...descrivi(c) })), ricerca)
+  const nascosti = contratti.filter((c) => c.stato !== 'cessato' && c.gestione_incassi === 'no').length
+  const attiviC = filtraTesto(contratti.filter((c) => c.stato !== 'cessato' && (mostraNascosti || c.gestione_incassi !== 'no')).map((c) => ({ ...c, ...descrivi(c) })), ricerca)
   const gruppi = new Map<string, typeof attiviC>()
   for (const c of attiviC) gruppi.set(c.societa, [...(gruppi.get(c.societa) ?? []), c])
   const mesiAnno = MESI.map((_, i) => `${anno}-${String(i + 1).padStart(2, '0')}`)
@@ -120,6 +132,10 @@ export default function PaginaCanoni() {
   const fineContratto = (c: Contratto) => c.data_cessazione ? c.data_cessazione.slice(0, 7) : ''
 
   const canoniAnno = movimenti.filter((m) => m.tipo === 'canone' && m.competenza.startsWith(String(anno)))
+  const totaliDi = (ids: string[]) => {
+    const mm = canoniAnno.filter((m) => ids.includes(m.contratto_id) && m.stato !== 'stornato')
+    return { dovuto: mm.reduce((s, m) => s + (m.dovuto_cent ?? 0), 0), incassato: mm.reduce((s, m) => s + (m.incassato_cent ?? 0), 0) }
+  }
   const totDovuto = canoniAnno.reduce((s, m) => s + (m.dovuto_cent ?? 0), 0)
   const totIncassato = canoniAnno.reduce((s, m) => s + (m.incassato_cent ?? 0), 0)
   const insoluti = canoniAnno.filter((m) => m.stato === 'da_incassare' || m.stato === 'parziale').reduce((s, m) => s + ((m.dovuto_cent ?? 0) - (m.incassato_cent ?? 0)), 0)
@@ -150,47 +166,75 @@ export default function PaginaCanoni() {
         <select value={anno} onChange={(e) => setAnno(Number(e.target.value))} className={sel}>{anni.map((a) => <option key={a} value={a}>{a}</option>)}</select>
         <BarraRicerca valore={ricerca} onChange={setRicerca} segnaposto="Cerca società, immobile, conduttore…" />
         {scheda === 'elenco' && <select value={filtroStato} onChange={(e) => setFiltroStato(e.target.value)} className={sel}><option value="">Tutti gli stati</option>{STATI_MOVIMENTO.map((o) => <option key={o.valore} value={o.valore}>{o.etichetta}</option>)}</select>}
-        <span className="ml-auto text-sm text-gray-500">Canoni {anno}: dovuto {formattaEuro(totDovuto)} · incassato <strong>{formattaEuro(totIncassato)}</strong> · insoluto <strong className={insoluti > 0 ? 'text-red-600' : ''}>{formattaEuro(insoluti)}</strong></span>
+        {scheda === 'griglia' && nascosti > 0 && (
+          <button onClick={() => setMostraNascosti(!mostraNascosti)} className="flex items-center gap-1 text-sm text-gray-600 hover:underline">
+            {mostraNascosti ? <EyeOff size={16} /> : <Eye size={16} />} {mostraNascosti ? 'Nascondi' : 'Mostra'} {nascosti} contratti non gestiti da noi
+          </button>
+        )}
+        <div className="ml-auto rounded-xl bg-white px-4 py-2 text-right shadow-sm">
+          <div className="text-xs uppercase tracking-wide text-gray-500">Totale canoni {anno}</div>
+          <div className="text-sm">dovuto <strong>{formattaEuro(totDovuto)}</strong> · incassato <strong className="text-green-700">{formattaEuro(totIncassato)}</strong> · insoluto <strong className={insoluti > 0 ? 'text-red-600' : ''}>{formattaEuro(insoluti)}</strong></div>
+        </div>
       </div>
 
       <div className="mt-4">
         {errore && <Avviso tipo="errore">{errore}</Avviso>}
         {caricamento && !errore ? <Caricamento /> : scheda === 'griglia' ? (
           <>
-            <p className="mb-3 text-xs text-gray-500">Clicca una cella per registrare l'incasso del mese. Grigio chiaro = mese futuro o prima della decorrenza · bianco = da registrare · rosso = scaduto non incassato · giallo = parziale · verde = incassato.</p>
+            <p className="mb-3 text-xs text-gray-500">Ogni cella mostra l'importo incassato nel mese (verde), quello incassato in parte (giallo) o quello atteso e non incassato (rosso). Grigio = mese futuro o fuori dal periodo del contratto. Clicca una cella per registrare l'incasso.</p>
             {[...gruppi.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([soc, cs]) => (
               <div key={soc} className="mb-4">
                 <button onClick={() => setChiusi((s) => { const n = new Set(s); if (n.has(soc)) n.delete(soc); else n.add(soc); return n })} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-white">
                   {chiusi.has(soc) ? <ChevronRight size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
                   <span className="text-base font-semibold">{soc}</span><span className="text-sm text-gray-500">{cs.length} contratti</span>
+                  {(() => { const t = totaliDi(cs.map((c) => c.id)); return <span className="ml-auto text-sm text-gray-600">dovuto <strong>{formattaEuro(t.dovuto)}</strong> · incassato <strong className="text-green-700">{formattaEuro(t.incassato)}</strong>{t.dovuto - t.incassato > 0 && <> · insoluto <strong className="text-red-600">{formattaEuro(t.dovuto - t.incassato)}</strong></>}</span> })()}
                 </button>
                 {!chiusi.has(soc) && (
                   <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
                     <table className="w-full text-xs">
                       <thead><tr className="border-b bg-gray-50 text-left uppercase tracking-wide text-gray-500">
-                        <th className="px-3 py-2 font-semibold">Immobile / conduttore</th><th className="px-2 py-2 text-right font-semibold">Mensile</th>
+                        <th className="px-3 py-2 font-semibold">Immobile / conduttore</th><th className="px-2 py-2 text-left font-semibold">Canone mensile (imponibile + IVA)</th>
                         {MESI.map((m) => <th key={m} className="px-1 py-2 text-center font-semibold">{m}</th>)}
                       </tr></thead>
                       <tbody>
                         {cs.sort((a, b) => a.immobile.localeCompare(b.immobile)).map((c) => (
                           <tr key={c.id} className="border-b last:border-0">
-                            <td className="px-3 py-2"><div className="font-medium">{c.immobile}</div><div className="text-gray-500">{c.conduttore} <Etichetta tono={statoIva(c).tono}>{statoIva(c).testo}</Etichetta></div></td>
-                            <td className="px-2 py-2 text-right tabular-nums">{formattaEuro(c.canone_mensile_cent)}</td>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-1 font-medium">{c.immobile}
+                                <button title={c.gestione_incassi === 'no' ? 'Mostra di nuovo negli incassi' : 'Nascondi dagli incassi (non gestito da noi)'} onClick={() => impostaGestione(c, c.gestione_incassi === 'no' ? 'si' : 'no')} className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">{c.gestione_incassi === 'no' ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                                {c.gestione_incassi === 'no' && <Etichetta tono="grigio">non gestito da noi</Etichetta>}
+                              </div>
+                              <div className="text-gray-500">{c.conduttore} <Etichetta tono={statoIva(c).tono}>{statoIva(c).testo}</Etichetta></div>
+                            </td>
+                            <td className="px-2 py-2 tabular-nums">
+                              {(() => {
+                                const sc = scaglioniAnno(c, annualita, anno)
+                                if (sc.length <= 1) return <span className="font-medium">{descriviCanone(sc[0] ?? canoneMensilePer(c, annualita, mesiAnno[0]), formattaEuro)}</span>
+                                const ultimo = sc[sc.length - 1]
+                                return (
+                                  <div>
+                                    <div className="font-medium">{descriviCanone(ultimo, formattaEuro)} <span className="font-normal text-gray-500">dal {ultimo.dal ? `${ultimo.dal.slice(5)}/${ultimo.dal.slice(0, 4)}` : '—'}</span></div>
+                                    {sc.slice(0, -1).map((k, i) => <div key={i} className="text-gray-500">in precedenza {descriviCanone(k, formattaEuro)}</div>)}
+                                  </div>
+                                )
+                              })()}
+                            </td>
                             {mesiAnno.map((mese) => {
                               const { movimento: m } = cella(c, mese)
                               const fuori = (inizioContratto(c) && mese < inizioContratto(c)) || (fineContratto(c) && mese > fineContratto(c))
                               const futuro = mese > oggiMese
-                              let cls = 'bg-white hover:bg-gray-100', testo: React.ReactNode = '·'
+                              const atteso = canoneMensilePer(c, annualita, mese).totale_cent
+                              let cls = 'bg-white hover:bg-gray-100', testo: React.ReactNode = compatto(atteso)
                               if (m) {
-                                cls = m.stato === 'incassato' ? 'bg-green-100 hover:bg-green-200' : m.stato === 'parziale' ? 'bg-amber-100 hover:bg-amber-200' : m.stato === 'stornato' ? 'bg-gray-200' : 'bg-red-100 hover:bg-red-200'
-                                testo = m.stato === 'incassato' ? '✓' : m.stato === 'parziale' ? formattaEuro(m.incassato_cent).replace(' €', '') : m.stato === 'stornato' ? '—' : '!'
+                                cls = m.stato === 'incassato' ? 'bg-green-100 text-green-900 hover:bg-green-200' : m.stato === 'parziale' ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : m.stato === 'stornato' ? 'bg-gray-200 text-gray-500' : 'bg-red-100 text-red-800 hover:bg-red-200'
+                                testo = m.stato === 'stornato' ? '—' : m.stato === 'da_incassare' ? compatto(m.dovuto_cent) : compatto(m.incassato_cent)
                               } else if (fuori) { cls = 'bg-gray-50 text-gray-300'; testo = '' }
-                              else if (futuro) { cls = 'bg-gray-50 text-gray-300 hover:bg-gray-100' }
-                              else { cls = 'bg-red-50 hover:bg-red-100 text-red-400'; testo = '!' }
+                              else if (futuro) { cls = 'bg-gray-50 text-gray-400 hover:bg-gray-100' }
+                              else { cls = 'bg-red-50 hover:bg-red-100 text-red-500' }
                               return (
                                 <td key={mese} className="p-0.5">
-                                  <button title={m ? `${etichettaDi(STATI_MOVIMENTO, m.stato)} · fattura ${m.numero_fattura || '—'}` : `Registra canone ${mese}`} disabled={!!fuori && !m}
-                                    onClick={() => setAperto(m ?? nuovoCanone(c, mese))} className={`h-9 w-full rounded ${cls} disabled:cursor-default`}>{testo}</button>
+                                  <button title={m ? `${etichettaDi(STATI_MOVIMENTO, m.stato)}: incassato ${formattaEuro(m.incassato_cent)} su ${formattaEuro(m.dovuto_cent)} · fattura ${m.numero_fattura || '—'}` : `Atteso ${formattaEuro(atteso)} · clicca per registrare l'incasso`} disabled={!!fuori && !m}
+                                    onClick={() => setAperto(m ?? nuovoCanone(c, mese))} className={`h-9 w-full rounded px-0.5 text-[11px] tabular-nums ${cls} disabled:cursor-default`}>{testo}</button>
                                 </td>
                               )
                             })}

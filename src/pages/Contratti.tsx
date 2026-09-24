@@ -16,7 +16,7 @@ import { aggiungiAnni, formattaData, formattaEuro } from '../lib/utils/formato'
 const VUOTO: Partial<Contratto> = {
   immobile_id: '', conduttore_id: '', tipologia: '', stato: 'attivo', data_sottoscrizione: '', data_decorrenza: '', durata_anni: null,
   prima_scadenza: '', rinnovo_automatico: 'si', preavviso_mesi: 6, data_cessazione: '', motivo_cessazione: '',
-  canone_mensile_cent: null, canone_annuale_cent: null, periodicita: 'mensile', giorno_scadenza: 5,
+  canone_mensile_cent: null, canone_annuale_cent: null, periodicita: 'mensile', giorno_scadenza: 5, gestione_incassi: 'si',
   deposito_cent: null, deposito_modalita: '', deposito_restituito_il: '', regime_iva: '', iva_percento: 22,
   istat_attivo: 'si', istat_percentuale: 75, istat_mese: '',
   reg_data: '', reg_ufficio: '', reg_codice: '', reg_modalita: '', reg_imposta_cent: null, reg_quota_conduttore_cent: null,
@@ -76,6 +76,7 @@ export default function PaginaContratti() {
     { nome: 'canone_annuale_cent', etichetta: 'Canone annuale', tipo: 'euro', aiuto: 'Calcolato ×12, modificabile' },
     { nome: 'periodicita', etichetta: 'Periodicità pagamento', tipo: 'select', opzioni: PERIODICITA },
     { nome: 'giorno_scadenza', etichetta: 'Giorno di scadenza pagamento', tipo: 'numero' },
+    { nome: 'gestione_incassi', etichetta: 'Incassi gestiti da noi?', tipo: 'select', opzioni: SI_NO, aiuto: 'Se "No", il contratto non compare nella griglia Canoni e incassi' },
     { nome: 'deposito_cent', etichetta: 'Deposito cauzionale / caparra', tipo: 'euro', sezione: 'Deposito cauzionale' },
     { nome: 'deposito_modalita', etichetta: 'Modalità (bonifico, fideiussione…)', tipo: 'testo' },
     { nome: 'deposito_restituito_il', etichetta: 'Restituito il', tipo: 'data' },

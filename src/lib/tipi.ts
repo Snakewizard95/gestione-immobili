@@ -96,6 +96,7 @@ export interface Contratto extends RecordBase {
   canone_annuale_cent: number | null
   periodicita: string
   giorno_scadenza: number | null
+  gestione_incassi: string    // si | no: se 'no' il contratto non compare nella griglia Canoni e incassi
   deposito_cent: number | null
   deposito_modalita: string
   deposito_restituito_il: string
