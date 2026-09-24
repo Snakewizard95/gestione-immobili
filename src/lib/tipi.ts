@@ -125,12 +125,17 @@ export interface Annualita extends RecordBase {
   istat_applicato: string               // si | no
   istat_indice_percento: number | null  // variazione ISTAT (es. 1,2)
   istat_quota_percento: number | null   // quota applicata: 75 o 100
-  canone_precedente_cent: number | null
-  aumento_cent: number | null
-  canone_nuovo_cent: number | null
+  canone_mensile_precedente_cent: number | null
+  aumento_mensile_cent: number | null
+  canone_mensile_nuovo_cent: number | null
+  canone_precedente_cent: number | null // annuo, = mensile × 12
+  aumento_cent: number | null           // annuo
+  canone_nuovo_cent: number | null      // annuo, = mensile nuovo × 12
   istat_data_lettera: string
   aggiorna_canone: string               // si | no: aggiorna il canone nella scheda contratto
   // Imposta di registro
+  imposta_percento: number | null       // aliquota: 2 (abitativi) o 1 (uso diverso con locatore IVA)
+  base_imponibile_percento: number | null // 100, oppure 70 per canone concordato
   imposta_cent: number | null
   imposta_pagata: string                // si | no
   imposta_data_pagamento: string
