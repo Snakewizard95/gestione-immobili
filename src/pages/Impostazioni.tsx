@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom'
 import { Bottone } from '../components/ui'
 import { esportaConsultazione } from '../lib/esportaCompleto'
 import { creaBackup, ripristinaBackup } from '../lib/backup'
+import { MODO_DEMO } from '../lib/github'
+import { svuotaCache } from '../lib/store'
 import { useState } from 'react'
 import { Avviso } from '../components/ui'
 import { CONFIG } from '../config'
@@ -63,6 +65,14 @@ export default function Impostazioni() {
         </div>
         {esito && <div className="mt-3"><Avviso tipo={esito.startsWith('Errore') ? 'errore' : 'ok'}>{esito}</Avviso></div>}
       </section>
+
+      {MODO_DEMO && (
+        <section className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-6 text-sm">
+          <h2 className="font-semibold">Modalità dimostrativa</h2>
+          <p className="mt-2 text-gray-700">I dati sono salvati solo in questo browser. Puoi cancellarli tutti e ripartire da zero (ad esempio per rifare l'importazione dall'Excel con le impostazioni aggiornate).</p>
+          <Bottone variante="pericolo" className="mt-3" onClick={() => { if (window.confirm('Cancellare tutti i dati dimostrativi di questo browser?')) { Object.keys(localStorage).filter((k) => k.startsWith('gestione-immobili.demo.')).forEach((k) => localStorage.removeItem(k)); svuotaCache(); setEsito('Dati dimostrativi cancellati. Vai su "Importa da Excel" per ricaricarli.') } }}>Svuota dati dimostrativi</Bottone>
+        </section>
+      )}
 
       <section className="mt-6 rounded-xl bg-white p-6 shadow-sm text-sm">
         <h2 className="font-semibold">Rinnovo del token o cambio password</h2>

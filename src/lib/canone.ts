@@ -15,6 +15,22 @@ export interface CanoneMese {
 
 const r0 = (n: number) => Math.round(n)
 
+/** Giorno del mese in cui scade il canone (regola del gruppo: il 10, salvo casi particolari indicati nel contratto). */
+export const GIORNO_SCADENZA_PREDEFINITO = 10
+export function giornoScadenzaDi(c: Pick<Contratto, 'giorno_scadenza'>): number {
+  return c.giorno_scadenza && c.giorno_scadenza >= 1 && c.giorno_scadenza <= 31 ? c.giorno_scadenza : GIORNO_SCADENZA_PREDEFINITO
+}
+
+/** Data di scadenza del canone di un mese "AAAA-MM" → "AAAA-MM-GG". */
+export function scadenzaCanone(c: Pick<Contratto, 'giorno_scadenza'>, mese: string): string {
+  return `${mese}-${String(giornoScadenzaDi(c)).padStart(2, '0')}`
+}
+
+/** Vero se il canone del mese è già scaduto alla data indicata (AAAA-MM-GG). */
+export function canoneScaduto(c: Pick<Contratto, 'giorno_scadenza'>, mese: string, oggi: string): boolean {
+  return scadenzaCanone(c, mese) < oggi
+}
+
 function conIva(c: Contratto, imponibile: number | null, dal: string | null): CanoneMese {
   const iva_percento = statoIva(c).soggetto ? (c.iva_percento ?? 22) : 0
   if (imponibile == null) return { imponibile_cent: null, iva_percento, iva_cent: 0, totale_cent: null, dal }
@@ -58,14 +74,16 @@ export function descriviCanone(k: CanoneMese, formattaEuro: (n: number | null) =
 
 /**
  * Dovuto e incassato di un contratto per un anno.
- * Il dovuto conta TUTTI i mesi del periodo di validità del contratto già iniziati (fino al mese corrente),
- * usando il movimento registrato se esiste oppure il canone atteso in quel mese: così un anno senza
- * registrazioni mostra il dovuto reale, non zero.
+ * Il dovuto conta TUTTI i mesi del periodo di validità del contratto la cui scadenza (il giorno indicato nel
+ * contratto, di norma il 10) è già passata alla data `oggi`, usando il movimento registrato se esiste oppure il
+ * canone atteso in quel mese: così un anno senza registrazioni mostra il dovuto reale, non zero.
+ * Un canone incassato in anticipo (mese non ancora scaduto) conta comunque nell'incassato e nel dovuto.
  */
 export function totaliAnnoContratto(
   c: Contratto, tutte: Annualita[], movimenti: Array<{ contratto_id: string; tipo: string; competenza: string; stato: string; dovuto_cent: number | null; incassato_cent: number | null }>,
-  anno: number, oggiMese: string,
+  anno: number, oggi: string,
 ): { dovuto: number; incassato: number; mesiNonIncassati: string[] } {
+  const oggiMese = oggi.slice(0, 7)
   let dovuto = 0, incassato = 0
   const mesiNonIncassati: string[] = []
   const inizio = c.data_decorrenza ? c.data_decorrenza.slice(0, 7) : ''
@@ -75,10 +93,12 @@ export function totaliAnnoContratto(
     if (mese > oggiMese) break
     if ((inizio && mese < inizio) || (fine && mese > fine)) continue
     const m = movimenti.find((x) => x.contratto_id === c.id && x.tipo === 'canone' && x.competenza === mese)
+    const scaduto = canoneScaduto(c, mese, oggi)
+    if (!scaduto && !m) continue // mese in corso non ancora scaduto e senza registrazioni: non è dovuto
     if (m) {
       if (m.stato === 'stornato') continue
       dovuto += m.dovuto_cent ?? 0; incassato += m.incassato_cent ?? 0
-      if (m.stato === 'da_incassare' || m.stato === 'parziale') mesiNonIncassati.push(mese)
+      if ((m.stato === 'da_incassare' || m.stato === 'parziale') && scaduto) mesiNonIncassati.push(mese)
     } else {
       const atteso = canoneMensilePer(c, tutte, mese).totale_cent ?? 0
       dovuto += atteso

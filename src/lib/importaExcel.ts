@@ -126,7 +126,7 @@ export function preparaImportazione(
       ...campiNuovo(utente), immobile_id: immId, conduttore_id: con.id, tipologia: '', stato: 'attivo',
       data_sottoscrizione: '', data_decorrenza: '', durata_anni: null, prima_scadenza: '', rinnovo_automatico: 'si', preavviso_mesi: 6,
       data_cessazione: '', motivo_cessazione: '', canone_mensile_cent: Math.round(r.affitto_cent / 12), canone_annuale_cent: r.affitto_cent,
-      periodicita: 'mensile', giorno_scadenza: 5, gestione_incassi: 'si', deposito_cent: null, deposito_modalita: '', deposito_restituito_il: '', regime_iva: '', iva_percento: 22,
+      periodicita: 'mensile', giorno_scadenza: 10, gestione_incassi: 'si', deposito_cent: null, deposito_modalita: '', deposito_restituito_il: '', regime_iva: '', iva_percento: 22,
       istat_attivo: 'si', istat_percentuale: 75, istat_mese: '', reg_data: '', reg_ufficio: '', reg_codice: '', reg_modalita: '',
       reg_imposta_cent: null, reg_quota_conduttore_cent: null, imposta_registro_annuale_cent: r.imposta_registro_cent || null,
       note: 'Importato da Excel: completare scadenze e registrazione',

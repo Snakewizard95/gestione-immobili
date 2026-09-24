@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Printer } from 'lucide-react'
 import { Bottone, Caricamento } from '../components/ui'
-import { canoneMensilePer, descriviCanone, totaliAnnoContratto } from '../lib/canone'
+import { canoneMensilePer, canoneScaduto, descriviCanone, totaliAnnoContratto } from '../lib/canone'
 import { attivi } from '../lib/store'
 import {
   A_CARICO, MODALITA_REGISTRAZIONE, PERIODICITA, STATI_PIANO, TIPI_VOCE_CONDOMINIO, TIPOLOGIE_CONTRATTO, TIPOLOGIE_IMMOBILE, etichettaDi, statoIva,
@@ -73,7 +73,7 @@ export default function SchedaImmobile() {
   const cond_ = (cid: string) => conduttori.find((k) => k.id === cid)
   const somma = (xs: Array<number | null | undefined>) => xs.reduce<number>((s, n) => s + (n ?? 0), 0)
 
-  const totAnno = attivo ? totaliAnnoContratto(attivo, annualita, movimenti, anno, oggi.slice(0, 7)) : { dovuto: 0, incassato: 0, mesiNonIncassati: [] as string[] }
+  const totAnno = attivo ? totaliAnnoContratto(attivo, annualita, movimenti, anno, oggi) : { dovuto: 0, incassato: 0, mesiNonIncassati: [] as string[] }
   const dovutoAnno = totAnno.dovuto
   const incassatoAnno = totAnno.incassato
   const insolutiMesi = totAnno.mesiNonIncassati
@@ -161,7 +161,8 @@ export default function SchedaImmobile() {
                   const fuori = (attivo.data_decorrenza && mese < attivo.data_decorrenza.slice(0, 7)) || (attivo.data_cessazione && mese > attivo.data_cessazione.slice(0, 7))
                   const futuro = mese > oggi.slice(0, 7)
                   const atteso = fuori ? null : canoneMensilePer(attivo, annualita, mese).totale_cent
-                  const tono = m ? (m.stato === 'incassato' ? 'bg-green-50 text-green-900' : m.stato === 'parziale' ? 'bg-amber-50 text-amber-900' : m.stato === 'stornato' ? 'bg-gray-50 text-gray-400' : 'bg-red-50 text-red-800') : fuori ? 'text-gray-300' : futuro ? 'text-gray-400' : 'bg-red-50 text-red-600'
+                  const scaduto = canoneScaduto(attivo, mese, oggi)
+                  const tono = m ? (m.stato === 'incassato' ? 'bg-green-50 text-green-900' : m.stato === 'parziale' ? 'bg-amber-50 text-amber-900' : m.stato === 'stornato' ? 'bg-gray-50 text-gray-400' : scaduto ? 'bg-red-50 text-red-800' : 'text-gray-600') : fuori ? 'text-gray-300' : futuro || !scaduto ? 'text-gray-400' : 'bg-red-50 text-red-600'
                   return { nomeMese, m, atteso, fuori, tono }
                 })
                 const c = (n: number | null | undefined) => (n == null ? '' : formattaEuro(n).replace(' €', ''))

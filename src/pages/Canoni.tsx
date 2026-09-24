@@ -13,7 +13,7 @@ import Modulo, { type CampoDef } from '../components/Modulo'
 import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Tabella, filtraTesto } from '../components/ui'
 import { useSessioneAttiva } from '../lib/sessione'
 import { aggiorna, attivi, campiModifica, campiNuovo } from '../lib/store'
-import { canoneMensilePer, descriviCanone, scaglioniAnno, totaliAnnoContratto } from '../lib/canone'
+import { canoneMensilePer, canoneScaduto, descriviCanone, scadenzaCanone, scaglioniAnno, totaliAnnoContratto } from '../lib/canone'
 import { MODALITA_INCASSO, STATI_MOVIMENTO, TIPI_MOVIMENTO, etichettaDi, statoIva, type Annualita, type Conduttore, type Contratto, type Immobile, type Movimento, type Societa } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaData, formattaEuro } from '../lib/utils/formato'
@@ -127,7 +127,8 @@ export default function PaginaCanoni() {
   const gruppi = new Map<string, typeof attiviC>()
   for (const c of attiviC) gruppi.set(c.societa, [...(gruppi.get(c.societa) ?? []), c])
   const mesiAnno = MESI.map((_, i) => `${anno}-${String(i + 1).padStart(2, '0')}`)
-  const oggiMese = new Date().toISOString().slice(0, 7)
+  const oggi = new Date().toISOString().slice(0, 10)
+  const oggiMese = oggi.slice(0, 7)
   const cella = (c: Contratto, mese: string): Cella => ({ contratto: c, mese, movimento: movimenti.find((m) => m.contratto_id === c.id && m.tipo === 'canone' && m.competenza === mese) ?? null })
   const inizioContratto = (c: Contratto) => c.data_decorrenza ? c.data_decorrenza.slice(0, 7) : ''
   const fineContratto = (c: Contratto) => c.data_cessazione ? c.data_cessazione.slice(0, 7) : ''
@@ -136,7 +137,7 @@ export default function PaginaCanoni() {
   const totaliDi = (ids: string[]) => ids.reduce((t, id) => {
     const c = contratti.find((x) => x.id === id)
     if (!c) return t
-    const r = totaliAnnoContratto(c, annualita, movimenti, anno, oggiMese)
+    const r = totaliAnnoContratto(c, annualita, movimenti, anno, oggi)
     return { dovuto: t.dovuto + r.dovuto, incassato: t.incassato + r.incassato }
   }, { dovuto: 0, incassato: 0 })
   const totGriglia = totaliDi(attiviC.map((c) => c.id))
@@ -193,7 +194,7 @@ export default function PaginaCanoni() {
         {errore && <Avviso tipo="errore">{errore}</Avviso>}
         {caricamento && !errore ? <Caricamento /> : scheda === 'griglia' ? (
           <>
-            <p className="mb-3 text-xs text-gray-500">Ogni cella mostra l'importo incassato nel mese (verde), quello incassato in parte (giallo) o quello atteso e non incassato (rosso). Grigio = mese futuro o fuori dal periodo del contratto. Clicca una cella per registrare l'incasso.</p>
+            <p className="mb-3 text-xs text-gray-500">Ogni cella mostra l'importo incassato nel mese (verde), incassato in parte (giallo) o atteso e non incassato dopo la scadenza (rosso). Grigio = mese futuro, non ancora scaduto o fuori dal periodo del contratto. I canoni scadono il 10 di ogni mese, salvo il giorno indicato nel contratto. Clicca una cella per registrare l'incasso.</p>
             {[...gruppi.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([soc, cs]) => (
               <div key={soc} className="mb-4">
                 <button onClick={() => setChiusi((s) => { const n = new Set(s); if (n.has(soc)) n.delete(soc); else n.add(soc); return n })} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-white">
@@ -235,17 +236,18 @@ export default function PaginaCanoni() {
                               const { movimento: m } = cella(c, mese)
                               const fuori = (inizioContratto(c) && mese < inizioContratto(c)) || (fineContratto(c) && mese > fineContratto(c))
                               const futuro = mese > oggiMese
+                              const scaduto = canoneScaduto(c, mese, oggi)
                               const atteso = canoneMensilePer(c, annualita, mese).totale_cent
                               let cls = 'bg-white hover:bg-gray-100', testo: React.ReactNode = compatto(atteso)
                               if (m) {
-                                cls = m.stato === 'incassato' ? 'bg-green-100 text-green-900 hover:bg-green-200' : m.stato === 'parziale' ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : m.stato === 'stornato' ? 'bg-gray-200 text-gray-500' : 'bg-red-100 text-red-800 hover:bg-red-200'
+                                cls = m.stato === 'incassato' ? 'bg-green-100 text-green-900 hover:bg-green-200' : m.stato === 'parziale' ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : m.stato === 'stornato' ? 'bg-gray-200 text-gray-500' : scaduto ? 'bg-red-100 text-red-800 hover:bg-red-200' : 'bg-white text-gray-700 hover:bg-gray-100'
                                 testo = m.stato === 'stornato' ? '—' : m.stato === 'da_incassare' ? compatto(m.dovuto_cent) : compatto(m.incassato_cent)
                               } else if (fuori) { cls = 'bg-gray-50 text-gray-300'; testo = '' }
-                              else if (futuro) { cls = 'bg-gray-50 text-gray-400 hover:bg-gray-100' }
+                              else if (futuro || !scaduto) { cls = 'bg-gray-50 text-gray-400 hover:bg-gray-100' }
                               else { cls = 'bg-red-50 hover:bg-red-100 text-red-500' }
                               return (
                                 <td key={mese} className="p-0.5">
-                                  <button title={m ? `${etichettaDi(STATI_MOVIMENTO, m.stato)}: incassato ${formattaEuro(m.incassato_cent)} su ${formattaEuro(m.dovuto_cent)} · fattura ${m.numero_fattura || '—'}` : `Atteso ${formattaEuro(atteso)} · clicca per registrare l'incasso`} disabled={!!fuori && !m}
+                                  <button title={`Scadenza ${scadenzaCanone(c, mese).split('-').reverse().join('/')} · ${m ? `${etichettaDi(STATI_MOVIMENTO, m.stato)}: incassato ${formattaEuro(m.incassato_cent)} su ${formattaEuro(m.dovuto_cent)} · fattura ${m.numero_fattura || '—'}` : `atteso ${formattaEuro(atteso)} · clicca per registrare l'incasso`}`} disabled={!!fuori && !m}
                                     onClick={() => setAperto(m ?? nuovoCanone(c, mese))} className={`h-9 w-full rounded px-0.5 text-[11px] tabular-nums ${cls} disabled:cursor-default`}>{testo}</button>
                                 </td>
                               )
