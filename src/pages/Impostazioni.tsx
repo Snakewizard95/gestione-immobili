@@ -1,4 +1,7 @@
 import { useNavigate } from 'react-router-dom'
+import { Bottone } from '../components/ui'
+import { scaricaExcel } from '../lib/esporta'
+import { carica, type NomeCollezione } from '../lib/store'
 import { CONFIG } from '../config'
 import { giorniAllaScadenza } from '../lib/auth'
 import { useSessione } from '../lib/sessione'
@@ -8,6 +11,18 @@ export default function Impostazioni() {
   const { sessione, esci } = useSessione()
   const navigate = useNavigate()
   const giorni = giorniAllaScadenza(sessione?.scadenzaToken ?? null)
+
+  /** Esporta tutti gli elenchi grezzi (un foglio per collezione): copia di sicurezza completa leggibile in Excel. */
+  async function esportaTutto() {
+    if (!sessione) return
+    const nomi: NomeCollezione[] = ['societa', 'immobili', 'conduttori', 'condomini', 'contratti', 'annualita', 'movimenti', 'voci_condominiali', 'piani_rientro', 'allegati']
+    const fogli = []
+    for (const n of nomi) {
+      const rec = await carica<{ id: string; creato_il: string; creato_da: string; modificato_il: string; modificato_da: string; eliminato_il: string | null }>(sessione.token, n)
+      fogli.push({ nome: n, righe: rec.filter((r) => !r.eliminato_il).map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, k.endsWith('_cent') && typeof v === 'number' ? v / 100 : Array.isArray(v) ? v.join(';') : v]))) })
+    }
+    scaricaExcel('Gestione_Immobili_completo', fogli)
+  }
 
   return (
     <div className="max-w-2xl">
@@ -25,6 +40,12 @@ export default function Impostazioni() {
         <button onClick={() => { esci(); navigate('/login') }} className="mt-4 rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
           Esci da questo dispositivo
         </button>
+      </section>
+
+      <section className="mt-6 rounded-xl bg-white p-6 shadow-sm text-sm">
+        <h2 className="font-semibold">Copia di sicurezza in Excel</h2>
+        <p className="mt-2 text-gray-600">Scarica un unico file Excel con tutti gli elenchi (un foglio per ciascuno), con i nomi tecnici dei campi. Utile come backup o per analisi. Le esportazioni "leggibili" sono nei pulsanti "Esporta Excel" di ogni sezione.</p>
+        <Bottone variante="secondario" className="mt-3" onClick={esportaTutto}>Esporta tutto in Excel</Bottone>
       </section>
 
       <section className="mt-6 rounded-xl bg-white p-6 shadow-sm text-sm">

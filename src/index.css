@@ -12,3 +12,14 @@ body {
   color: #1a202c;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
+
+/* Stampa della scheda immobile: solo il contenuto, senza sfondi scuri */
+@media print {
+  body { background: #fff; }
+  .no-stampa { display: none !important; }
+  .pagina-stampa { padding: 0 !important; max-width: none !important; box-shadow: none !important; }
+  .interrompi-prima { break-before: page; }
+  table { break-inside: auto; }
+  tr { break-inside: avoid; }
+  @page { size: A4; margin: 14mm; }
+}

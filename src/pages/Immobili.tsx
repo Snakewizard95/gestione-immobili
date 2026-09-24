@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+import { Printer } from 'lucide-react'
 import PaginaAnagrafica from '../components/PaginaAnagrafica'
 import { Etichetta } from '../components/ui'
 import { attivi } from '../lib/store'
@@ -15,6 +17,8 @@ export default function PaginaImmobili() {
       titolo="Immobili" singolare="immobile" collezione="immobili" dipendenze={['societa', 'condomini']} vuotoNuovo={VUOTO}
       descrivi={(r) => r.indirizzo ?? ''}
       testoRicerca={(r, dati) => dati<Societa>('societa').find((s) => s.id === r.societa_id)?.ragione_sociale ?? ''}
+      extraExcel={(r, dati) => ({ 'Società': dati<Societa>('societa').find((s) => s.id === r.societa_id)?.ragione_sociale ?? '', 'Condominio': dati<Condominio>('condomini').find((c) => c.id === r.condominio_id)?.denominazione ?? '' })}
+      azioniRiga={(r) => <Link to={`/stampa/immobile/${r.id}`} title="Scheda immobile (stampa / PDF)" className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"><Printer size={14} /> Scheda</Link>}
       campi={(dati) => [
         { nome: 'societa_id', etichetta: 'Società proprietaria', tipo: 'select', obbligatorio: true,
           opzioni: attivi(dati<Societa>('societa')).map((s) => ({ valore: s.id, etichetta: s.ragione_sociale })) },

@@ -14,11 +14,21 @@ import PaginaStorico from './pages/Storico'
 import PaginaRegistro from './pages/Registro'
 import PaginaCanoni from './pages/Canoni'
 import PaginaCondominio from './pages/Condominio'
+import SchedaImmobile from './pages/SchedaImmobile'
 
 /** Mostra le pagine interne solo se l'utente ha effettuato l'accesso. */
 function AreaProtetta() {
   const { sessione } = useSessione()
   if (!sessione) return <Navigate to="/login" replace />
+  return (
+    <Routes>
+      <Route path="/stampa/immobile/:id" element={<SchedaImmobile />} />
+      <Route path="/*" element={<AreaConMenu />} />
+    </Routes>
+  )
+}
+
+function AreaConMenu() {
   return (
     <Layout>
       <Routes>

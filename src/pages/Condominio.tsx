@@ -4,7 +4,8 @@
  * conduttore e allegati (bollettini, verbali assembleari, riparti).
  */
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileSpreadsheet, Plus } from 'lucide-react'
+import { righeDaCampi, scaricaExcel } from '../lib/esporta'
 import Allegati from '../components/Allegati'
 import Modulo, { type CampoDef } from '../components/Modulo'
 import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Tabella, filtraTesto } from '../components/ui'
@@ -218,7 +219,12 @@ export default function PaginaCondominio() {
         <BarraRicerca valore={ricerca} onChange={setRicerca} segnaposto="Cerca società, immobile, condominio…" />
         {scheda === 'voci' && <><select value={esercizio} onChange={(e) => setEsercizio(e.target.value)} className={sel}><option value="">Tutti gli esercizi</option>{esercizi.map((e) => <option key={e} value={e}>{e}</option>)}</select>
         <select value={filtro} onChange={(e) => setFiltro(e.target.value as typeof filtro)} className={sel}><option value="tutte">Tutte le voci</option><option value="da_pagare">Da pagare</option><option value="da_riaddebitare">Da riaddebitare al conduttore</option></select></>}
-        <span className="ml-auto text-sm text-gray-500">da pagare <strong className={totDaPagare > 0 ? 'text-red-600' : ''}>{formattaEuro(totDaPagare)}</strong> · da incassare dai conduttori <strong>{formattaEuro(totDaRiaddebitare)}</strong></span>
+        <Bottone variante="secondario" className="ml-auto" onClick={() => scaricaExcel('Oneri_condominiali', [
+          { nome: 'Bollettini e rate', righe: righeDaCampi(filtrate, campi.filter((c) => !['immobile_id', 'condominio_id'].includes(c.nome)), (v) => ({ 'Società': v.societa, 'Immobile': v.immobile, 'Condominio': v.condominio })) },
+          { nome: 'Riepilogo immobili', righe: riepiloghi.map((r) => ({ 'Situazione': livelloTesto(r.livello), 'Società': r.societa, 'Immobile': r.imm.indirizzo, 'Condominio': r.condominio?.denominazione ?? '', 'Amministratore': r.condominio?.amministratore_nome ?? '', 'IBAN': r.condominio?.iban ?? '', 'Voci': r.n, 'Totale': r.totale / 100, 'Pagato': r.pagato / 100, 'Da pagare': r.daPagare / 100, 'Scaduto': r.scaduto / 100, 'Scaduto dal': formattaData(r.piuVecchia), 'In piano': r.inPiano / 100, 'Da incassare dal conduttore': r.daRiaddebitare / 100 })) },
+          { nome: 'Piani di rientro', righe: piani.map((p) => ({ 'Stato': etichettaDi(STATI_PIANO, p.stato), 'Immobile': immobili.find((i) => i.id === p.immobile_id)?.indirizzo ?? '', 'Accordo del': formattaData(p.data_accordo), 'Descrizione': p.descrizione, 'Totale': (p.importo_totale_cent ?? 0) / 100, 'Rate': p.numero_rate ?? '', 'Importo rata': (p.importo_rata_cent ?? 0) / 100, 'Prima scadenza': formattaData(p.prima_scadenza), 'Periodicità': etichettaDi(PERIODICITA_PIANO, p.periodicita) })) },
+        ])}><span className="flex items-center gap-1"><FileSpreadsheet size={16} /> Esporta Excel</span></Bottone>
+        <span className="text-sm text-gray-500">da pagare <strong className={totDaPagare > 0 ? 'text-red-600' : ''}>{formattaEuro(totDaPagare)}</strong> · da incassare dai conduttori <strong>{formattaEuro(totDaRiaddebitare)}</strong></span>
       </div>
 
       <div className="mt-4">

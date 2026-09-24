@@ -1,10 +1,11 @@
 /** Pagina standard "elenco + scheda" per le anagrafiche (società, immobili, conduttori, condomini). */
 import { useState, type ReactNode } from 'react'
-import { Plus } from 'lucide-react'
+import { FileSpreadsheet, Plus } from 'lucide-react'
 import { useSessioneAttiva } from '../lib/sessione'
 import { aggiorna, attivi, campiModifica, campiNuovo, type NomeCollezione, type RecordBase } from '../lib/store'
 import { useCollezioni } from '../lib/useCollezioni'
 import Modulo, { type CampoDef } from './Modulo'
+import { righeDaCampi, scaricaExcel } from '../lib/esporta'
 import { Avviso, BarraRicerca, Bottone, Caricamento, Finestra, Tabella, filtraTesto, type Colonna } from './ui'
 
 interface Props<T extends RecordBase> {
@@ -26,6 +27,10 @@ interface Props<T extends RecordBase> {
   dopoSalva?: (id: string, valori: Record<string, unknown>) => Promise<void>
   /** Nomi dei campi del modulo da NON salvare nel record */
   campiVirtuali?: string[]
+  /** Colonne aggiuntive nell'esportazione Excel (es. nome della società al posto dell'id) */
+  extraExcel?: (r: T, dati: <R extends RecordBase>(n: NomeCollezione) => R[]) => Record<string, unknown>
+  /** Colonna con azioni per riga (es. stampa scheda) */
+  azioniRiga?: (r: T) => ReactNode
 }
 
 export default function PaginaAnagrafica<T extends RecordBase>(p: Props<T>) {
@@ -66,11 +71,14 @@ export default function PaginaAnagrafica<T extends RecordBase>(p: Props<T>) {
       {p.intestazioneExtra}
       <div className="mt-4 flex items-center justify-between gap-3">
         <BarraRicerca valore={ricerca} onChange={setRicerca} />
-        <span className="text-sm text-gray-500">{righe.length} elementi</span>
+        <span className="ml-auto text-sm text-gray-500">{righe.length} elementi</span>
+        <Bottone variante="secondario" onClick={() => scaricaExcel(p.titolo.replace(/[^\w]+/g, '_'), [{ nome: p.titolo, righe: righeDaCampi(righe, p.campi(dati).filter((c) => !(p.campiVirtuali ?? []).includes(c.nome)), (r) => p.extraExcel?.(r, dati) ?? {}) }])}>
+          <span className="flex items-center gap-1"><FileSpreadsheet size={16} /> Esporta Excel</span>
+        </Bottone>
       </div>
       <div className="mt-4">
         {errore && <Avviso tipo="errore">{errore}</Avviso>}
-        {caricamento && !errore ? <Caricamento /> : <Tabella colonne={p.colonne(dati)} righe={righe} onRiga={(r) => setAperto(r)} vuoto={`Nessun elemento. Premi "${nuovo} ${p.singolare}" per iniziare.`} />}
+        {caricamento && !errore ? <Caricamento /> : <Tabella colonne={p.azioniRiga ? [...p.colonne(dati), { chiave: '_azioni', etichetta: '', render: (r: T) => <span onClick={(e) => e.stopPropagation()}>{p.azioniRiga!(r)}</span> }] : p.colonne(dati)} righe={righe} onRiga={(r) => setAperto(r)} vuoto={`Nessun elemento. Premi "${nuovo} ${p.singolare}" per iniziare.`} />}
       </div>
       <Finestra titolo={aperto?.id ? `Modifica ${p.singolare}` : `${nuovo} ${p.singolare}`} aperta={aperto !== null} onChiudi={() => setAperto(null)} larga>
         {aperto && <Modulo<T> campi={p.campi(dati)} iniziale={{ ...aperto, ...(p.prepara?.(aperto, dati) ?? {}) } as Partial<T>} onSalva={salva} onAnnulla={() => setAperto(null)} onElimina={aperto.id ? elimina : undefined} derivati={p.derivati} />}

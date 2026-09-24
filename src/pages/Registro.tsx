@@ -5,7 +5,9 @@
  * In alto: promemoria sulle regole dell'imposta di registro.
  */
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Info } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileSpreadsheet, Info } from 'lucide-react'
+import { Bottone } from '../components/ui'
+import { scaricaExcel } from '../lib/esporta'
 import RegistroAnnuale from '../components/RegistroAnnuale'
 import { Avviso, BarraRicerca, Caricamento, Etichetta, Finestra, Tabella, filtraTesto } from '../components/ui'
 import { attivi } from '../lib/store'
@@ -138,6 +140,10 @@ export default function PaginaRegistro() {
           ))}
         </div>
         <BarraRicerca valore={ricerca} onChange={setRicerca} segnaposto="Cerca società, immobile, conduttore…" />
+        <Bottone variante="secondario" onClick={() => scaricaExcel('ISTAT_imposta_registro', [
+          { nome: 'Annualità', righe: righeAnnualita.map((a) => ({ 'Anno': a.anno, 'Società': a.societa, 'Immobile': a.immobile, 'Conduttore': a.conduttore, 'Inizio annualità': formattaData(a.data_inizio), 'ISTAT applicato': a.istat_applicato === 'si' ? 'Sì' : 'No', 'Indice ISTAT %': a.istat_indice_percento ?? '', 'Quota %': a.istat_quota_percento ?? '', 'Mensile prima': (a.canone_mensile_precedente_cent ?? 0) / 100, 'Mensile dopo': (a.canone_mensile_nuovo_cent ?? 0) / 100, 'Annuo dopo': (a.canone_nuovo_cent ?? 0) / 100, 'Aliquota %': a.imposta_percento ?? '', 'Base %': a.base_imponibile_percento ?? '', 'Imposta': (a.imposta_cent ?? 0) / 100, 'Pagata': a.imposta_pagata === 'si' ? 'Sì' : 'No', 'Data pagamento': formattaData(a.imposta_data_pagamento), 'Quota conduttore': (a.quota_conduttore_cent ?? 0) / 100, 'Rimborso ricevuto': a.rimborso_ricevuto === 'si' ? 'Sì' : 'No', 'Data rimborso': formattaData(a.rimborso_data), 'Note': a.note })) },
+          { nome: 'Contratti', righe: righeContratti.map((r) => ({ 'Società': r.societa, 'Immobile': r.immobile, 'Conduttore': r.conduttore, 'Tipo': etichettaDi(TIPOLOGIE_CONTRATTO, r.tipologia), 'IVA': statoIva(r).testo, 'Decorrenza': formattaData(r.data_decorrenza), 'Canone mensile': (r.canone_mensile_cent ?? 0) / 100, 'Annualità registrate': r.nAnnualita, 'Ultimo anno': r.ultimoAnno ?? '', 'Imposte da pagare': r.daPagare })) },
+        ])}><span className="flex items-center gap-1"><FileSpreadsheet size={16} /> Esporta Excel</span></Bottone>
         {scheda === 'annualita' && (
           <>
             <select value={anno} onChange={(e) => setAnno(e.target.value)} className={sel}><option value="">Tutti gli anni</option>{anni.map((a) => <option key={a} value={a}>{a}</option>)}</select>

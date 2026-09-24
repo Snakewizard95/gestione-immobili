@@ -28,6 +28,7 @@ export default function PaginaCondomini() {
       campiVirtuali={['immobili_ids']}
       prepara={(r, dati) => ({ immobili_ids: r.id ? attivi(dati<Immobile>('immobili')).filter((i) => i.condominio_id === r.id).map((i) => i.id) : [] })}
       dopoSalva={collegaImmobili}
+      extraExcel={(r, dati) => ({ 'Immobili collegati': attivi(dati<Immobile>('immobili')).filter((i) => i.condominio_id === r.id).map((i) => i.indirizzo).join('; ') })}
       testoRicerca={(r, dati) => attivi(dati<Immobile>('immobili')).filter((i) => i.condominio_id === r.id).map((i) => i.indirizzo).join(' ')}
       campi={(dati) => {
         const societa = attivi(dati<Societa>('societa'))

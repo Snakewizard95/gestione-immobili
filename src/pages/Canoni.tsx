@@ -6,7 +6,8 @@
  * registro, depositi, altro) con filtri e totali.
  */
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Eye, EyeOff, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, Eye, EyeOff, FileSpreadsheet, Plus } from 'lucide-react'
+import { righeDaCampi, scaricaExcel } from '../lib/esporta'
 import Allegati from '../components/Allegati'
 import Modulo, { type CampoDef } from '../components/Modulo'
 import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Tabella, filtraTesto } from '../components/ui'
@@ -171,7 +172,15 @@ export default function PaginaCanoni() {
             {mostraNascosti ? <EyeOff size={16} /> : <Eye size={16} />} {mostraNascosti ? 'Nascondi' : 'Mostra'} {nascosti} contratti non gestiti da noi
           </button>
         )}
-        <div className="ml-auto rounded-xl bg-white px-4 py-2 text-right shadow-sm">
+        <Bottone variante="secondario" className="ml-auto" onClick={() => {
+          const tutti = movimenti.filter((m) => m.competenza.startsWith(String(anno)))
+          const extra = (m: Movimento) => { const d = descrivi(contrattoDi(m.contratto_id)); return { 'Società': d.societa, 'Immobile': d.immobile, 'Conduttore': d.conduttore } }
+          scaricaExcel(`Canoni_incassi_${anno}`, [
+            { nome: `Movimenti ${anno}`, righe: righeDaCampi(tutti.sort((a, b) => a.competenza.localeCompare(b.competenza)), campi.filter((c) => c.nome !== 'contratto_id'), extra) },
+            { nome: `Griglia canoni ${anno}`, righe: attiviC.map((c) => { const r: Record<string, unknown> = { 'Società': c.societa, 'Immobile': c.immobile, 'Conduttore': c.conduttore }; for (const mese of mesiAnno) { const m = cella(c, mese).movimento; r[MESI[Number(mese.slice(5)) - 1]] = m ? (m.incassato_cent ?? 0) / 100 : '' } const t = totaliDi([c.id]); r['Dovuto anno'] = t.dovuto / 100; r['Incassato anno'] = t.incassato / 100; return r }) },
+          ])
+        }}><span className="flex items-center gap-1"><FileSpreadsheet size={16} /> Esporta Excel</span></Bottone>
+        <div className="rounded-xl bg-white px-4 py-2 text-right shadow-sm">
           <div className="text-xs uppercase tracking-wide text-gray-500">Totale canoni {anno}</div>
           <div className="text-sm">dovuto <strong>{formattaEuro(totDovuto)}</strong> · incassato <strong className="text-green-700">{formattaEuro(totIncassato)}</strong> · insoluto <strong className={insoluti > 0 ? 'text-red-600' : ''}>{formattaEuro(insoluti)}</strong></div>
         </div>

@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { FileSpreadsheet, Plus, Printer } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { righeDaCampi, scaricaExcel } from '../lib/esporta'
 import Allegati from '../components/Allegati'
 import Modulo, { type CampoDef } from '../components/Modulo'
 import RegistroAnnuale from '../components/RegistroAnnuale'
@@ -127,6 +129,9 @@ export default function PaginaContratti() {
         </div>
         <BarraRicerca valore={ricerca} onChange={setRicerca} segnaposto="Cerca per società, immobile, conduttore…" />
         <span className="ml-auto text-sm text-gray-500">{righe.length} contratti · canone annuo <strong>{formattaEuro(totaleAnnuo)}</strong></span>
+        <Bottone variante="secondario" onClick={() => scaricaExcel(`Contratti_${scheda}`, [{ nome: `Contratti ${scheda}`, righe: righeDaCampi(righe, campi, (c) => ({ 'Società': societaDi(c), 'Immobile': immobile(c.immobile_id)?.indirizzo ?? '', 'Conduttore': conduttore(c.conduttore_id) })) }])}>
+          <span className="flex items-center gap-1"><FileSpreadsheet size={16} /> Esporta Excel</span>
+        </Bottone>
       </div>
       <div className="mt-4">
         {errore && <Avviso tipo="errore">{errore}</Avviso>}
@@ -144,6 +149,7 @@ export default function PaginaContratti() {
               { chiave: 'scad', etichetta: 'Prima scadenza', render: (c) => formattaData(c.prima_scadenza) },
               { chiave: 'reg', etichetta: 'Imp. registro annua', allinea: 'dx', render: (c) => formattaEuro(c.imposta_registro_annuale_cent) },
               { chiave: 'stato', etichetta: 'Stato', render: (c) => <Etichetta tono={tonoStato(c.stato)}>{etichettaDi(STATI_CONTRATTO, c.stato)}</Etichetta> },
+              { chiave: 'az', etichetta: '', render: (c) => <Link to={`/stampa/immobile/${c.immobile_id}`} onClick={(e) => e.stopPropagation()} title="Scheda immobile (stampa / PDF)" className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"><Printer size={14} /> Scheda</Link> },
             ]} />
         )}
       </div>
