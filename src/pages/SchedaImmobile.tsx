@@ -171,21 +171,12 @@ export default function SchedaImmobile() {
                     <thead><tr className="bg-gray-50 text-[10px] uppercase text-gray-500"><th className="w-20 px-1 py-1 text-left font-semibold">Mese</th>{celle.map((x) => <th key={x.nomeMese} className="px-1 py-1 font-semibold">{x.nomeMese}</th>)}</tr></thead>
                     <tbody>
                       <tr className="border-t"><td className="px-1 py-1 text-left text-gray-500">Dovuto</td>{celle.map((x) => <td key={x.nomeMese} className="px-1 py-1 text-gray-600">{x.fuori ? '' : c(x.m && x.m.stato !== 'stornato' ? x.m.dovuto_cent : x.atteso)}</td>)}</tr>
-                      <tr className="border-t"><td className="px-1 py-1 text-left text-gray-500">Incassato</td>{celle.map((x) => {
-                        const scad = canoneScaduto(attivo, `${anno}-${String(MESI.indexOf(x.nomeMese) + 1).padStart(2, '0')}`, oggi)
-                        let t = ''
-                        if (!x.fuori) {
-                          if (x.m) t = x.m.stato === 'stornato' ? '—' : x.m.stato === 'incassato' ? `✓ ${c(x.m.incassato_cent)}` : x.m.stato === 'parziale' ? `½ ${c(x.m.incassato_cent)}` : scad ? `! 0` : `(${c(x.m.dovuto_cent)})`
-                          else t = x.atteso == null ? '' : scad ? '! 0' : `(${c(x.atteso)})`
-                        }
-                        return <td key={x.nomeMese} className={`px-1 py-1 font-medium ${x.tono}`}>{t}</td>
-                      })}</tr>
+                      <tr className="border-t"><td className="px-1 py-1 text-left text-gray-500">Incassato</td>{celle.map((x) => <td key={x.nomeMese} className={`px-1 py-1 font-medium ${x.tono}`}>{x.fuori ? '' : x.m ? (x.m.stato === 'stornato' ? 'stornato' : c(x.m.incassato_cent ?? 0)) : (x.atteso != null && !x.tono.includes('gray') ? '0' : '')}</td>)}</tr>
                       <tr className="border-t"><td className="px-1 py-1 text-left text-gray-500">Fattura</td>{celle.map((x) => <td key={x.nomeMese} className="px-1 py-1 text-gray-600">{x.m?.numero_fattura || ''}</td>)}</tr>
                     </tbody>
                   </table>
                 )
               })()}
-              <p className="mt-1 text-[10px] text-gray-500">✓ incassato · ½ in parte · ! scaduto non incassato · (…) previsto</p>
               <p className="mt-1 text-xs">Dovuto {formattaEuro(dovutoAnno)} · incassato <strong>{formattaEuro(incassatoAnno)}</strong>{insolutiMesi.length > 0 && <> · <span className="font-medium text-red-600">non incassati: {insolutiMesi.map((m) => MESI[Number(m.slice(5)) - 1]).join(', ')}</span></>}</p>
               {altriMov.length > 0 && <div className="mt-3"><div className="mb-1 text-xs font-semibold uppercase text-gray-500">Altri movimenti {anno}</div><Tab intestazioni={['Data', 'Tipo', 'Descrizione', 'Dovuto', 'Incassato', 'Stato']} dx={[3, 4]} righe={altriMov.map((m) => [formattaData(m.competenza), m.tipo, m.descrizione, formattaEuro(m.dovuto_cent), formattaEuro(m.incassato_cent), m.stato])} /></div>}
             </>
