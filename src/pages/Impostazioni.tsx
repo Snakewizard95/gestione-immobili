@@ -1,7 +1,9 @@
 import { useNavigate } from 'react-router-dom'
 import { Bottone } from '../components/ui'
-import { scaricaExcel } from '../lib/esporta'
-import { carica, type NomeCollezione } from '../lib/store'
+import { esportaConsultazione } from '../lib/esportaCompleto'
+import { creaBackup, ripristinaBackup } from '../lib/backup'
+import { useState } from 'react'
+import { Avviso } from '../components/ui'
 import { CONFIG } from '../config'
 import { giorniAllaScadenza } from '../lib/auth'
 import { useSessione } from '../lib/sessione'
@@ -12,16 +14,18 @@ export default function Impostazioni() {
   const navigate = useNavigate()
   const giorni = giorniAllaScadenza(sessione?.scadenzaToken ?? null)
 
-  /** Esporta tutti gli elenchi grezzi (un foglio per collezione): copia di sicurezza completa leggibile in Excel. */
-  async function esportaTutto() {
-    if (!sessione) return
-    const nomi: NomeCollezione[] = ['societa', 'immobili', 'conduttori', 'condomini', 'contratti', 'annualita', 'movimenti', 'voci_condominiali', 'piani_rientro', 'allegati']
-    const fogli = []
-    for (const n of nomi) {
-      const rec = await carica<{ id: string; creato_il: string; creato_da: string; modificato_il: string; modificato_da: string; eliminato_il: string | null }>(sessione.token, n)
-      fogli.push({ nome: n, righe: rec.filter((r) => !r.eliminato_il).map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, k.endsWith('_cent') && typeof v === 'number' ? v / 100 : Array.isArray(v) ? v.join(';') : v]))) })
-    }
-    scaricaExcel('Gestione_Immobili_completo', fogli)
+  const [esito, setEsito] = useState<string | null>(null)
+  const [inCorso, setInCorso] = useState(false)
+  const anno = new Date().getFullYear()
+
+  async function esegui(fn: () => Promise<string | void>) {
+    setInCorso(true); setEsito(null)
+    try { const r = await fn(); if (r) setEsito(r) } catch (e) { setEsito('Errore: ' + (e as Error).message) } finally { setInCorso(false) }
+  }
+  async function ripristina(file: File | undefined) {
+    if (!file || !sessione) return
+    if (!window.confirm('ATTENZIONE: il ripristino sostituisce TUTTI i dati attuali con quelli del file di backup. Continuare?')) return
+    await esegui(() => ripristinaBackup(sessione.token, sessione.nome, file))
   }
 
   return (
@@ -43,9 +47,21 @@ export default function Impostazioni() {
       </section>
 
       <section className="mt-6 rounded-xl bg-white p-6 shadow-sm text-sm">
-        <h2 className="font-semibold">Copia di sicurezza in Excel</h2>
-        <p className="mt-2 text-gray-600">Scarica un unico file Excel con tutti gli elenchi (un foglio per ciascuno), con i nomi tecnici dei campi. Utile come backup o per analisi. Le esportazioni "leggibili" sono nei pulsanti "Esporta Excel" di ogni sezione.</p>
-        <Bottone variante="secondario" className="mt-3" onClick={esportaTutto}>Esporta tutto in Excel</Bottone>
+        <h2 className="font-semibold">Esportazione completa per la consultazione (Excel)</h2>
+        <p className="mt-2 text-gray-600">Un unico file Excel, leggibile da chiunque anche senza conoscere la situazione: un foglio per sezione (riepilogo per società, società, immobili, conduttori, condomini, contratti attivi e cessati, ISTAT e imposta di registro, canoni {anno} mese per mese, movimenti {anno}, bollettini condominiali, riepilogo condominio, piani di rientro). Nomi al posto dei codici, importi in euro, date italiane.</p>
+        <Bottone className="mt-3" disabled={inCorso} onClick={() => sessione && esegui(() => esportaConsultazione(sessione.token, anno))}>Scarica l'Excel di consultazione</Bottone>
+      </section>
+
+      <section className="mt-6 rounded-xl bg-white p-6 shadow-sm text-sm">
+        <h2 className="font-semibold">Copia di sicurezza (backup) e ripristino</h2>
+        <p className="mt-2 text-gray-600">Il backup è un file tecnico (.json) con tutti i dati esatti, compresi quelli eliminati: serve per ripristinare la piattaforma o per caricarla su un nuovo repository. Non è pensato per la lettura. Gli allegati (PDF) non sono nel file: restano nel repository dati.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Bottone variante="secondario" disabled={inCorso} onClick={() => sessione && esegui(() => creaBackup(sessione.token, sessione.nome))}>Scarica backup (.json)</Bottone>
+          <label className="cursor-pointer rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
+            Ripristina da backup…<input type="file" accept=".json" className="hidden" disabled={inCorso} onChange={(e) => ripristina(e.target.files?.[0])} />
+          </label>
+        </div>
+        {esito && <div className="mt-3"><Avviso tipo={esito.startsWith('Errore') ? 'errore' : 'ok'}>{esito}</Avviso></div>}
       </section>
 
       <section className="mt-6 rounded-xl bg-white p-6 shadow-sm text-sm">

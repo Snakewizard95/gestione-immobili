@@ -18,27 +18,30 @@ import { formattaData, formattaDataOra, formattaEuro } from '../lib/utils/format
 
 const MESI = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic']
 
-function Sezione({ titolo, children }: { titolo: string; children: React.ReactNode }) {
+function Sezione({ titolo, children, compatta }: { titolo: string; children: React.ReactNode; compatta?: boolean }) {
   return (
-    <section className="mt-6">
-      <h2 className="mb-2 border-b-2 pb-1 text-base font-semibold uppercase tracking-wide" style={{ borderColor: 'var(--colore-primario)', color: 'var(--colore-primario)' }}>{titolo}</h2>
+    <section className={compatta ? 'rounded-lg border border-gray-200 p-3' : 'mt-5'}>
+      <h2 className={`${compatta ? 'mb-2 text-xs' : 'mb-2 border-b-2 pb-1 text-sm'} font-semibold uppercase tracking-wide`} style={{ borderColor: 'var(--colore-primario)', color: 'var(--colore-primario)' }}>{titolo}</h2>
       {children}
     </section>
   )
 }
-function Campi({ voci }: { voci: Array<[string, React.ReactNode]> }) {
+/** Elenco etichetta/valore compatto: salta i valori vuoti così le mini sezioni restano corte. */
+function Campi({ voci, colonne = 1 }: { voci: Array<[string, React.ReactNode]>; colonne?: 1 | 2 }) {
+  const pieni = voci.filter(([, v]) => v !== undefined && v !== '' && v !== null)
   return (
-    <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm sm:grid-cols-[max-content_1fr_max-content_1fr]">
-      {voci.filter(([, v]) => v !== undefined).map(([k, v]) => (<><dt key={k + 'k'} className="text-gray-500">{k}</dt><dd key={k + 'v'} className="font-medium">{v === '' || v === null ? '—' : v}</dd></>))}
+    <dl className={`grid gap-x-3 gap-y-0.5 text-xs ${colonne === 2 ? 'grid-cols-[max-content_1fr_max-content_1fr]' : 'grid-cols-[max-content_1fr]'}`}>
+      {pieni.map(([k, v]) => (<><dt key={k + 'k'} className="text-gray-500">{k}</dt><dd key={k + 'v'} className="font-medium">{v}</dd></>))}
+      {pieni.length === 0 && <dd className="text-gray-400">Nessun dato inserito.</dd>}
     </dl>
   )
 }
 function Tab({ intestazioni, righe, dx }: { intestazioni: string[]; righe: React.ReactNode[][]; dx?: number[] }) {
   if (righe.length === 0) return <p className="text-sm text-gray-500">Nessun dato.</p>
   return (
-    <table className="w-full text-sm">
-      <thead><tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">{intestazioni.map((h, i) => <th key={h} className={`px-2 py-1.5 font-semibold ${dx?.includes(i) ? 'text-right' : ''}`}>{h}</th>)}</tr></thead>
-      <tbody>{righe.map((r, i) => <tr key={i} className="border-b last:border-0">{r.map((c, j) => <td key={j} className={`px-2 py-1.5 ${dx?.includes(j) ? 'text-right tabular-nums' : ''}`}>{c}</td>)}</tr>)}</tbody>
+    <table className="w-full">
+      <thead><tr className="border-b bg-gray-50 text-left text-[10px] uppercase text-gray-500">{intestazioni.map((h, i) => <th key={h} className={`px-2 py-1 font-semibold ${dx?.includes(i) ? 'text-right' : ''}`}>{h}</th>)}</tr></thead>
+      <tbody>{righe.map((r, i) => <tr key={i} className="border-b last:border-0 text-xs">{r.map((c, j) => <td key={j} className={`px-2 py-1 ${dx?.includes(j) ? 'text-right tabular-nums' : ''}`}>{c}</td>)}</tr>)}</tbody>
     </table>
   )
 }
@@ -88,11 +91,11 @@ export default function SchedaImmobile() {
         <Bottone onClick={() => window.print()}><span className="flex items-center gap-1"><Printer size={16} /> Stampa / Salva PDF</span></Bottone>
       </div>
 
-      <div className="pagina-stampa mx-auto my-6 max-w-4xl bg-white p-10 shadow print:my-0">
+      <div className="pagina-stampa mx-auto my-6 max-w-4xl bg-white p-8 text-sm shadow print:my-0">
         <header className="flex items-start justify-between border-b-4 pb-4" style={{ borderColor: 'var(--colore-primario)' }}>
           <div>
             <div className="text-xs uppercase tracking-wide text-gray-500">Scheda immobile</div>
-            <h1 className="text-2xl font-bold">{imm.indirizzo}</h1>
+            <h1 className="text-xl font-bold">{imm.indirizzo}</h1>
             <div className="text-gray-600">{[imm.comune, imm.provincia].filter(Boolean).join(' ')} · {etichettaDi(TIPOLOGIE_IMMOBILE, imm.tipologia)} · Proprietà: <strong>{soc?.ragione_sociale ?? '—'}</strong></div>
           </div>
           <div className="text-right text-xs text-gray-500">
@@ -102,30 +105,31 @@ export default function SchedaImmobile() {
         </header>
 
         {/* Riquadro situazione */}
-        <div className="mt-4 grid gap-3 sm:grid-cols-4 text-sm">
+        <div className="mt-3 grid gap-2 sm:grid-cols-4 text-xs">
           {[
             ['Canoni ' + anno, `${formattaEuro(incassatoAnno)} su ${formattaEuro(dovutoAnno)}`, insolutiMesi.length ? `${insolutiMesi.length} mesi non incassati` : 'in regola', insolutiMesi.length > 0],
             ['Imposta di registro', impostaNonPagata.length ? `${impostaNonPagata.length} annualità non pagate` : 'in regola', rimborsiMancanti.length ? `${rimborsiMancanti.length} rimborsi 50% da incassare` : '', impostaNonPagata.length > 0],
             ['Condominio', vociNonPagate.length ? `${formattaEuro(somma(vociNonPagate.map((v) => v.importo_cent)))} da pagare` : 'in regola', scaduto > 0 ? `di cui scaduto ${formattaEuro(scaduto)}` : '', scaduto > 0],
             ['Da incassare dal conduttore', formattaEuro(daRiaddebitare + somma(rimborsiMancanti.map((a) => a.quota_conduttore_cent))), 'spese condominiali + imposta di registro', false],
           ].map(([t, v, s, critico]) => (
-            <div key={t as string} className={`rounded-lg border p-3 ${critico ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
-              <div className="text-xs uppercase text-gray-500">{t}</div><div className="font-semibold">{v}</div><div className={`text-xs ${critico ? 'text-red-700' : 'text-gray-500'}`}>{s}</div>
+            <div key={t as string} className={`rounded-lg border p-2 ${critico ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
+              <div className="text-[10px] uppercase text-gray-500">{t}</div><div className="font-semibold">{v}</div><div className={`text-[11px] ${critico ? 'text-red-700' : 'text-gray-500'}`}>{s}</div>
             </div>
           ))}
         </div>
 
-        <Sezione titolo="Immobile">
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <Sezione titolo="Immobile" compatta>
           <Campi voci={[['Società proprietaria', soc?.ragione_sociale], ['P. IVA / CF', soc?.partita_iva || soc?.codice_fiscale], ['Indirizzo', imm.indirizzo], ['Comune', [imm.comune, imm.provincia].filter(Boolean).join(' ')],
             ['Tipologia', etichettaDi(TIPOLOGIE_IMMOBILE, imm.tipologia)], ['Superficie', imm.superficie_mq ? `${imm.superficie_mq} mq` : ''], ['Catasto', [imm.foglio && `Fg. ${imm.foglio}`, imm.particella && `Part. ${imm.particella}`, imm.subalterno && `Sub. ${imm.subalterno}`, imm.categoria && `Cat. ${imm.categoria}`].filter(Boolean).join(' · ')], ['Rendita', imm.rendita_cent ? formattaEuro(imm.rendita_cent) : ''],
             ['Stato', imm.stato === 'locato' ? 'Locato' : imm.stato === 'libero' ? 'Libero' : 'Non locabile'], ['Note', imm.note]]} />
         </Sezione>
 
-        <Sezione titolo="Condominio e amministratore">
-          {cond ? <Campi voci={[['Condominio', cond.denominazione], ['CF condominio', cond.codice_fiscale], ['Indirizzo', cond.indirizzo], ['Millesimi', imm.millesimi ?? ''], ['Amministratore', cond.amministratore_nome], ['Telefono', cond.amministratore_telefono], ['Email', cond.amministratore_email], ['PEC', cond.amministratore_pec], ['IBAN', cond.iban ? <span className="font-mono">{cond.iban}</span> : ''], ['Intestatario', cond.iban_intestatario]]} /> : <p className="text-sm text-gray-500">Immobile non collegato a un condominio.</p>}
+        <Sezione titolo="Condominio e amministratore" compatta>
+          {cond ? <Campi voci={[['Condominio', cond.denominazione], ['CF condominio', cond.codice_fiscale], ['Indirizzo', cond.indirizzo], ['Millesimi', imm.millesimi ?? ''], ['Amministratore', cond.amministratore_nome], ['Telefono', cond.amministratore_telefono], ['Email', cond.amministratore_email], ['PEC', cond.amministratore_pec], ['IBAN', cond.iban ? <span className="font-mono">{cond.iban}</span> : ''], ['Intestatario', cond.iban_intestatario]]} /> : <p className="text-xs text-gray-500">Immobile non collegato a un condominio.</p>}
         </Sezione>
 
-        <Sezione titolo={attivo ? 'Contratto di locazione in essere' : 'Contratto di locazione'}>
+        <Sezione titolo={attivo ? 'Contratto in essere' : 'Contratto di locazione'} compatta>
           {attivo ? (() => { const k = cond_(attivo.conduttore_id); const iva = statoIva(attivo); const kmese = canoneMensilePer(attivo, annualita, oggi.slice(0, 7)); return (
             <Campi voci={[['Conduttore', k?.denominazione], ['CF / P. IVA', k?.codice_fiscale || k?.partita_iva], ['Contatti', [k?.telefono, k?.email, k?.pec].filter(Boolean).join(' · ')], ['Stato', attivo.stato === 'in_disdetta' ? 'In disdetta' : 'Attivo'],
               ['Tipologia', etichettaDi(TIPOLOGIE_CONTRATTO, attivo.tipologia)], ['IVA', iva.testo], ['Sottoscrizione', formattaData(attivo.data_sottoscrizione)], ['Decorrenza', formattaData(attivo.data_decorrenza)],
@@ -135,8 +139,9 @@ export default function SchedaImmobile() {
               ['ISTAT', attivo.istat_attivo === 'si' ? `Sì, ${attivo.istat_percentuale ?? 75}%` : 'No'], ['Incassi gestiti da noi', attivo.gestione_incassi === 'no' ? 'No' : 'Sì'],
               ['Registrazione', [attivo.reg_data && formattaData(attivo.reg_data), attivo.reg_ufficio, attivo.reg_modalita && etichettaDi(MODALITA_REGISTRAZIONE, attivo.reg_modalita)].filter(Boolean).join(' · ')], ['Codice identificativo', attivo.reg_codice],
               ['Imposta prima registrazione', attivo.reg_imposta_cent ? `${formattaEuro(attivo.reg_imposta_cent)}${attivo.reg_quota_conduttore_cent ? ' (conduttore ' + formattaEuro(attivo.reg_quota_conduttore_cent) + ')' : ''}` : ''], ['Note', attivo.note]]} />
-          ) })() : <p className="text-sm text-gray-500">Nessun contratto attivo: immobile {imm.stato === 'libero' ? 'libero' : 'senza contratto registrato'}.</p>}
+          ) })() : <p className="text-xs text-gray-500">Nessun contratto attivo: immobile {imm.stato === 'libero' ? 'libero' : 'senza contratto registrato'}.</p>}
         </Sezione>
+        </div>
 
         {attivo && (
           <Sezione titolo="Registro annuale: ISTAT e imposta di registro">
@@ -148,30 +153,41 @@ export default function SchedaImmobile() {
         <Sezione titolo={`Canoni ${anno}`}>
           {attivo ? (
             <>
-              <div className="mb-2 grid grid-cols-6 gap-1 text-center text-xs sm:grid-cols-12">
-                {MESI.map((nomeMese, i) => {
+              {(() => {
+                const celle = MESI.map((nomeMese, i) => {
                   const mese = `${anno}-${String(i + 1).padStart(2, '0')}`
                   const m = canoniAnno.find((x) => x.contratto_id === attivo.id && x.competenza === mese)
                   const fuori = (attivo.data_decorrenza && mese < attivo.data_decorrenza.slice(0, 7)) || (attivo.data_cessazione && mese > attivo.data_cessazione.slice(0, 7))
                   const futuro = mese > oggi.slice(0, 7)
-                  const cls = m ? (m.stato === 'incassato' ? 'bg-green-100 border-green-300' : m.stato === 'parziale' ? 'bg-amber-100 border-amber-300' : m.stato === 'stornato' ? 'bg-gray-100' : 'bg-red-100 border-red-300') : fuori ? 'bg-gray-50 text-gray-300' : futuro ? 'bg-gray-50 text-gray-400' : 'bg-red-50 border-red-200 text-red-500'
-                  return <div key={mese} className={`rounded border p-1 ${cls}`}><div className="font-semibold">{nomeMese}</div><div className="tabular-nums">{m ? (m.stato === 'stornato' ? '—' : formattaEuro(m.stato === 'da_incassare' ? m.dovuto_cent : m.incassato_cent).replace(' €', '')) : fuori ? '' : formattaEuro(canoneMensilePer(attivo, annualita, mese).totale_cent).replace(' €', '')}</div></div>
-                })}
-              </div>
-              <p className="text-sm">Dovuto {formattaEuro(dovutoAnno)} · incassato <strong>{formattaEuro(incassatoAnno)}</strong>{insolutiMesi.length > 0 && <> · <span className="font-medium text-red-600">mesi non incassati: {insolutiMesi.map((m) => MESI[Number(m.slice(5)) - 1]).join(', ')}</span></>}</p>
-              {canoniAnno.some((m) => m.numero_fattura) && <p className="mt-1 text-xs text-gray-500">Fatture emesse: {canoniAnno.filter((m) => m.numero_fattura).sort((a, b) => a.competenza.localeCompare(b.competenza)).map((m) => `${MESI[Number(m.competenza.slice(5)) - 1]} n. ${m.numero_fattura}`).join(' · ')}</p>}
+                  const atteso = fuori ? null : canoneMensilePer(attivo, annualita, mese).totale_cent
+                  const tono = m ? (m.stato === 'incassato' ? 'bg-green-50 text-green-900' : m.stato === 'parziale' ? 'bg-amber-50 text-amber-900' : m.stato === 'stornato' ? 'bg-gray-50 text-gray-400' : 'bg-red-50 text-red-800') : fuori ? 'text-gray-300' : futuro ? 'text-gray-400' : 'bg-red-50 text-red-600'
+                  return { nomeMese, m, atteso, fuori, tono }
+                })
+                const c = (n: number | null | undefined) => (n == null ? '' : formattaEuro(n).replace(' €', ''))
+                return (
+                  <table className="w-full table-fixed text-center text-[11px] tabular-nums">
+                    <thead><tr className="bg-gray-50 text-[10px] uppercase text-gray-500"><th className="w-20 px-1 py-1 text-left font-semibold">Mese</th>{celle.map((x) => <th key={x.nomeMese} className="px-1 py-1 font-semibold">{x.nomeMese}</th>)}</tr></thead>
+                    <tbody>
+                      <tr className="border-t"><td className="px-1 py-1 text-left text-gray-500">Dovuto</td>{celle.map((x) => <td key={x.nomeMese} className="px-1 py-1 text-gray-600">{x.fuori ? '' : c(x.m && x.m.stato !== 'stornato' ? x.m.dovuto_cent : x.atteso)}</td>)}</tr>
+                      <tr className="border-t"><td className="px-1 py-1 text-left text-gray-500">Incassato</td>{celle.map((x) => <td key={x.nomeMese} className={`px-1 py-1 font-medium ${x.tono}`}>{x.fuori ? '' : x.m ? (x.m.stato === 'stornato' ? 'stornato' : c(x.m.incassato_cent ?? 0)) : (x.atteso != null && !x.tono.includes('gray') ? '0' : '')}</td>)}</tr>
+                      <tr className="border-t"><td className="px-1 py-1 text-left text-gray-500">Fattura</td>{celle.map((x) => <td key={x.nomeMese} className="px-1 py-1 text-gray-600">{x.m?.numero_fattura || ''}</td>)}</tr>
+                    </tbody>
+                  </table>
+                )
+              })()}
+              <p className="mt-1 text-xs">Dovuto {formattaEuro(dovutoAnno)} · incassato <strong>{formattaEuro(incassatoAnno)}</strong>{insolutiMesi.length > 0 && <> · <span className="font-medium text-red-600">non incassati: {insolutiMesi.map((m) => MESI[Number(m.slice(5)) - 1]).join(', ')}</span></>}</p>
               {altriMov.length > 0 && <div className="mt-3"><div className="mb-1 text-xs font-semibold uppercase text-gray-500">Altri movimenti {anno}</div><Tab intestazioni={['Data', 'Tipo', 'Descrizione', 'Dovuto', 'Incassato', 'Stato']} dx={[3, 4]} righe={altriMov.map((m) => [formattaData(m.competenza), m.tipo, m.descrizione, formattaEuro(m.dovuto_cent), formattaEuro(m.incassato_cent), m.stato])} /></div>}
             </>
-          ) : <p className="text-sm text-gray-500">Nessun contratto attivo.</p>}
+          ) : <p className="text-xs text-gray-500">Nessun contratto attivo.</p>}
         </Sezione>
 
         <Sezione titolo="Situazione condominiale">
           {voci.length === 0 ? <p className="text-sm text-gray-500">Nessuna voce registrata.</p> : (
             <>
-              <p className="mb-2 text-sm">Totale voci {formattaEuro(somma(voci.map((v) => v.importo_cent)))} · pagato {formattaEuro(somma(voci.filter((v) => v.pagata === 'si').map((v) => v.importo_cent)))} · <span className={vociNonPagate.length ? 'font-medium text-red-600' : ''}>da pagare {formattaEuro(somma(vociNonPagate.map((v) => v.importo_cent)))}</span>{scaduto > 0 && <> (scaduto {formattaEuro(scaduto)})</>} · da incassare dal conduttore {formattaEuro(daRiaddebitare)}</p>
+              <p className="mb-1 text-xs">Totale voci {formattaEuro(somma(voci.map((v) => v.importo_cent)))} · pagato {formattaEuro(somma(voci.filter((v) => v.pagata === 'si').map((v) => v.importo_cent)))} · <span className={vociNonPagate.length ? 'font-medium text-red-600' : ''}>da pagare {formattaEuro(somma(vociNonPagate.map((v) => v.importo_cent)))}</span>{scaduto > 0 && <> (scaduto {formattaEuro(scaduto)})</>} · da incassare dal conduttore {formattaEuro(daRiaddebitare)}</p>
               <Tab intestazioni={['Esercizio', 'Tipo', 'Descrizione', 'Scadenza', 'Importo', 'A carico', 'Pagata', 'Quota conduttore']} dx={[4]}
-                righe={voci.slice(0, 40).map((v) => [v.esercizio, etichettaDi(TIPI_VOCE_CONDOMINIO, v.tipo), `${v.descrizione}${v.in_piano_id ? ' (in piano di rientro)' : ''}`, <span className={v.pagata !== 'si' && v.scadenza < oggi ? 'font-medium text-red-600' : ''}>{formattaData(v.scadenza)}</span>, formattaEuro(v.importo_cent), etichettaDi(A_CARICO, v.a_carico).split(' (')[0], v.pagata === 'si' ? `Sì ${formattaData(v.data_pagamento)}` : <span className="font-medium text-red-600">No</span>, (v.quota_conduttore_cent ?? 0) > 0 ? `${formattaEuro(v.quota_conduttore_cent)} ${v.riaddebitata === 'si' ? 'incassata' : 'da incassare'}` : '—'])} />
-              {voci.length > 40 && <p className="mt-1 text-xs text-gray-500">Mostrate le 40 voci più recenti su {voci.length}.</p>}
+                righe={voci.slice(0, 25).map((v) => [v.esercizio, etichettaDi(TIPI_VOCE_CONDOMINIO, v.tipo), `${v.descrizione}${v.in_piano_id ? ' (in piano di rientro)' : ''}`, <span className={v.pagata !== 'si' && v.scadenza < oggi ? 'font-medium text-red-600' : ''}>{formattaData(v.scadenza)}</span>, formattaEuro(v.importo_cent), etichettaDi(A_CARICO, v.a_carico).split(' (')[0], v.pagata === 'si' ? `Sì ${formattaData(v.data_pagamento)}` : <span className="font-medium text-red-600">No</span>, (v.quota_conduttore_cent ?? 0) > 0 ? `${formattaEuro(v.quota_conduttore_cent)} ${v.riaddebitata === 'si' ? 'incassata' : 'da incassare'}` : '—'])} />
+              {voci.length > 25 && <p className="mt-1 text-xs text-gray-500">Mostrate le 25 voci più recenti su {voci.length}.</p>}
             </>
           )}
           {piani.length > 0 && <div className="mt-3"><div className="mb-1 text-xs font-semibold uppercase text-gray-500">Piani di rientro</div><Tab intestazioni={['Stato', 'Accordo del', 'Descrizione', 'Totale', 'Rate', 'Prima scadenza']} dx={[3]} righe={piani.map((p) => [etichettaDi(STATI_PIANO, p.stato), formattaData(p.data_accordo), p.descrizione, formattaEuro(p.importo_totale_cent), `${p.numero_rate ?? ''} da ${formattaEuro(p.importo_rata_cent)}`, formattaData(p.prima_scadenza)])} /></div>}
@@ -184,7 +200,7 @@ export default function SchedaImmobile() {
         )}
 
         <Sezione titolo="Documenti archiviati">
-          {allegati.length === 0 ? <p className="text-sm text-gray-500">Nessun allegato.</p> : <p className="text-sm">{allegati.length} documenti: {Object.entries(allegati.reduce<Record<string, number>>((acc, a) => ({ ...acc, [a.categoria]: (acc[a.categoria] ?? 0) + 1 }), {})).map(([k, n]) => `${k} (${n})`).join(', ')}. Consultabili nella piattaforma.</p>}
+          {allegati.length === 0 ? <p className="text-xs text-gray-500">Nessun allegato.</p> : <p className="text-xs">{allegati.length} documenti: {Object.entries(allegati.reduce<Record<string, number>>((acc, a) => ({ ...acc, [a.categoria]: (acc[a.categoria] ?? 0) + 1 }), {})).map(([k, n]) => `${k} (${n})`).join(', ')}. Consultabili nella piattaforma.</p>}
         </Sezione>
 
         <footer className="mt-8 border-t pt-3 text-xs text-gray-400">Gestione Immobili · scheda generata automaticamente dai dati inseriti dai collaboratori · {formattaDataOra(new Date().toISOString())}</footer>
