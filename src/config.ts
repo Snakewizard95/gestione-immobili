@@ -3,7 +3,7 @@ import tokenCifrato from './config.token.json'
 
 export const CONFIG = {
   /** Nome utente GitHub proprietario dei repository (es. "davide-rossi") */
-  proprietario: 'TUONOME',
+  proprietario: 'Snakewizard95',
   /** Repository PRIVATO con dati e allegati */
   repoDati: 'gestione-immobili-dati',
   /** Ramo su cui leggere/scrivere */
