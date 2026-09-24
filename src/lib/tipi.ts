@@ -33,6 +33,8 @@ export interface Condominio extends RecordBase {
   amministratore_telefono: string
   amministratore_email: string
   amministratore_pec: string
+  iban: string
+  iban_intestatario: string
   note: string
 }
 
@@ -224,6 +226,7 @@ export const TIPI_VOCE_CONDOMINIO: Opzione[] = [
   { valore: 'conguaglio', etichetta: 'Conguaglio consuntivo' },
   { valore: 'straordinaria', etichetta: 'Rata lavori straordinari' },
   { valore: 'fondo', etichetta: 'Fondo / accantonamento' },
+  { valore: 'rata_piano', etichetta: 'Rata di un piano di rientro' },
   { valore: 'altro', etichetta: 'Altro' },
 ]
 export const A_CARICO: Opzione[] = [
@@ -246,5 +249,30 @@ export interface VoceCondominiale extends RecordBase {
   data_pagamento: string
   riaddebitata: string         // si | no: quota conduttore richiesta/incassata
   data_riaddebito: string
+  piano_id: string             // se la voce è una rata generata da un piano di rientro
+  in_piano_id: string          // se il bollettino insoluto è stato incluso in un piano di rientro
+  note: string
+}
+
+export const STATI_PIANO: Opzione[] = [
+  { valore: 'attivo', etichetta: 'In corso' }, { valore: 'concluso', etichetta: 'Concluso (saldato)' }, { valore: 'annullato', etichetta: 'Annullato' },
+]
+export const PERIODICITA_PIANO: Opzione[] = [
+  { valore: 'mensile', etichetta: 'Mensile' }, { valore: 'bimestrale', etichetta: 'Bimestrale' }, { valore: 'trimestrale', etichetta: 'Trimestrale' },
+]
+
+/** Piano di rientro concordato con l'amministratore per saldare più bollettini insoluti a rate. */
+export interface PianoRientro extends RecordBase {
+  immobile_id: string
+  condominio_id: string
+  data_accordo: string
+  descrizione: string
+  voci_ids: string[]           // bollettini insoluti inclusi nel piano
+  importo_totale_cent: number | null
+  numero_rate: number | null
+  importo_rata_cent: number | null
+  prima_scadenza: string
+  periodicita: string          // PERIODICITA_PIANO
+  stato: string                // STATI_PIANO
   note: string
 }

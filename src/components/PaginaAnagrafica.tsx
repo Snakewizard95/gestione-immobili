@@ -20,6 +20,12 @@ interface Props<T extends RecordBase> {
   derivati?: (v: Partial<T>, campo: string) => Partial<T>
   intestazioneExtra?: ReactNode
   genere?: 'm' | 'f'
+  /** Aggiunge al modulo valori non salvati nel record (es. elenco immobili collegati) */
+  prepara?: (r: Partial<T>, dati: <R extends RecordBase>(n: NomeCollezione) => R[]) => Record<string, unknown>
+  /** Eseguito dopo il salvataggio del record, con l'id del record e tutti i valori del modulo */
+  dopoSalva?: (id: string, valori: Record<string, unknown>) => Promise<void>
+  /** Nomi dei campi del modulo da NON salvare nel record */
+  campiVirtuali?: string[]
 }
 
 export default function PaginaAnagrafica<T extends RecordBase>(p: Props<T>) {
@@ -31,12 +37,16 @@ export default function PaginaAnagrafica<T extends RecordBase>(p: Props<T>) {
   const righe = filtraTesto(attivi(dati<T>(p.collezione)), ricerca, (r) => p.testoRicerca?.(r, dati) ?? '')
   const nuovo = p.genere === 'f' ? 'Nuova' : 'Nuovo'
 
-  async function salva(valori: Partial<T>) {
+  async function salva(tutti: Partial<T>) {
+    const valori = { ...tutti } as Record<string, unknown>
+    for (const k of p.campiVirtuali ?? []) delete valori[k]
     const esistente = !!valori.id
+    const nuovi = esistente ? null : campiNuovo(nome)
     await aggiorna<T>(token, p.collezione, (rec) => {
       if (esistente) return rec.map((r) => (r.id === valori.id ? { ...r, ...valori, ...campiModifica(nome) } as T : r))
-      return [...rec, { ...p.vuotoNuovo, ...valori, ...campiNuovo(nome) } as T]
+      return [...rec, { ...p.vuotoNuovo, ...valori, ...nuovi } as T]
     }, `${nome}: ${esistente ? 'modifica' : 'nuovo'} ${p.singolare} ${p.descrivi(valori as T)}`)
+    if (p.dopoSalva) await p.dopoSalva((valori.id as string) ?? nuovi!.id, tutti as Record<string, unknown>)
     setAperto(null)
   }
 
@@ -63,7 +73,7 @@ export default function PaginaAnagrafica<T extends RecordBase>(p: Props<T>) {
         {caricamento && !errore ? <Caricamento /> : <Tabella colonne={p.colonne(dati)} righe={righe} onRiga={(r) => setAperto(r)} vuoto={`Nessun elemento. Premi "${nuovo} ${p.singolare}" per iniziare.`} />}
       </div>
       <Finestra titolo={aperto?.id ? `Modifica ${p.singolare}` : `${nuovo} ${p.singolare}`} aperta={aperto !== null} onChiudi={() => setAperto(null)} larga>
-        {aperto && <Modulo<T> campi={p.campi(dati)} iniziale={aperto} onSalva={salva} onAnnulla={() => setAperto(null)} onElimina={aperto.id ? elimina : undefined} derivati={p.derivati} />}
+        {aperto && <Modulo<T> campi={p.campi(dati)} iniziale={{ ...aperto, ...(p.prepara?.(aperto, dati) ?? {}) } as Partial<T>} onSalva={salva} onAnnulla={() => setAperto(null)} onElimina={aperto.id ? elimina : undefined} derivati={p.derivati} />}
       </Finestra>
     </div>
   )

@@ -7,7 +7,7 @@ import type { Opzione } from '../lib/tipi'
 import { analizzaEuro, formattaEuro } from '../lib/utils/formato'
 import { Avviso, Bottone } from './ui'
 
-export type TipoCampo = 'testo' | 'textarea' | 'numero' | 'euro' | 'data' | 'select' | 'percentuale'
+export type TipoCampo = 'testo' | 'textarea' | 'numero' | 'euro' | 'data' | 'select' | 'percentuale' | 'multiselect'
 
 export interface CampoDef<T> {
   nome: keyof T & string
@@ -64,7 +64,7 @@ export default function Modulo<T>({ campi, iniziale, onSalva, onAnnulla, onElimi
     e.preventDefault()
     for (const c of campi) {
       const v = valori[c.nome]
-      if (c.obbligatorio && (v === undefined || v === null || v === '')) { setErrore(`Il campo "${c.etichetta}" è obbligatorio.`); return }
+      if (c.obbligatorio && (v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0))) { setErrore(`Il campo "${c.etichetta}" è obbligatorio.`); return }
     }
     setErrore(null); setInCorso(true)
     try { await onSalva(valori as Partial<T>) } catch (err) { setErrore((err as Error).message) } finally { setInCorso(false) }
@@ -84,7 +84,7 @@ export default function Modulo<T>({ campi, iniziale, onSalva, onAnnulla, onElimi
         {campi.map((c) => {
           const v = valori[c.nome]
           return (
-            <div key={c.nome} className={`${c.intera || c.tipo === 'textarea' ? 'sm:col-span-2' : ''} ${c.sezione ? 'sm:col-span-2' : ''}`}>
+            <div key={c.nome} className={`${c.intera || c.tipo === 'textarea' || c.tipo === 'multiselect' ? 'sm:col-span-2' : ''} ${c.sezione ? 'sm:col-span-2' : ''}`}>
               {c.sezione && <h3 className="mb-3 mt-2 border-b pb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">{c.sezione}</h3>}
               <label className={`block text-sm font-medium ${c.sezione && !c.intera ? 'sm:w-1/2 sm:pr-2' : ''}`}>
                 {c.etichetta}{c.obbligatorio && <span className="text-red-500"> *</span>}
@@ -101,6 +101,21 @@ export default function Modulo<T>({ campi, iniziale, onSalva, onAnnulla, onElimi
                     <option value="">— seleziona —</option>
                     {c.opzioni?.map((o) => <option key={o.valore} value={o.valore}>{o.etichetta}</option>)}
                   </select>
+                )}
+                {c.tipo === 'multiselect' && (
+                  <div className="mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-300 bg-white p-2">
+                    {(c.opzioni ?? []).length === 0 && <span className="text-sm text-gray-400">Nessuna opzione disponibile</span>}
+                    {(c.opzioni ?? []).map((o) => {
+                      const scelti = (v as string[] | undefined) ?? []
+                      const on = scelti.includes(o.valore)
+                      return (
+                        <label key={o.valore} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm font-normal hover:bg-gray-50">
+                          <input type="checkbox" checked={on} disabled={c.soloLettura} onChange={() => imposta(c.nome, on ? scelti.filter((x) => x !== o.valore) : [...scelti, o.valore])} />
+                          {o.etichetta}
+                        </label>
+                      )
+                    })}
+                  </div>
                 )}
                 {c.aiuto && <span className="mt-1 block text-xs font-normal text-gray-500">{c.aiuto}</span>}
               </label>

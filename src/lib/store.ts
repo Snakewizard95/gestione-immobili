@@ -13,7 +13,7 @@ export type NomeCollezione =
   | 'societa' | 'conduttori' | 'condomini' | 'immobili'
   | 'contratti' | 'annualita'
   | 'movimenti'
-  | 'voci_condominiali' | 'allegati'
+  | 'voci_condominiali' | 'piani_rientro' | 'allegati'
 
 export interface RecordBase {
   id: string
