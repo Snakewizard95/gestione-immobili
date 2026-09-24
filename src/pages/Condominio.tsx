@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, FileSpreadsheet, Plus } from 'lucide-react'
 import { righeDaCampi, scaricaExcel } from '../lib/esporta'
+import { SoloSeModifica } from '../components/SoloLettura'
 import Allegati from '../components/Allegati'
 import Modulo, { type CampoDef } from '../components/Modulo'
 import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Tabella, filtraTesto } from '../components/ui'
@@ -207,7 +208,7 @@ export default function PaginaCondominio() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Oneri condominiali</h1>
-        <Bottone onClick={() => setAperta(nuova())}><span className="flex items-center gap-1"><Plus size={16} /> Nuova voce</span></Bottone>
+        <SoloSeModifica><Bottone onClick={() => setAperta(nuova())}><span className="flex items-center gap-1"><Plus size={16} /> Nuova voce</span></Bottone></SoloSeModifica>
       </div>
       <p className="mt-1 text-gray-500">Rate, conguagli e lavori straordinari comunicati dagli amministratori, immobile per immobile, con bollettini e verbali allegati.</p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -252,7 +253,7 @@ export default function PaginaCondominio() {
           </>
         ) : scheda === 'piani' ? (
           <>
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-white p-4 shadow-sm text-sm">
+            <SoloSeModifica><div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-white p-4 shadow-sm text-sm">
               <span className="font-medium">Nuovo piano di rientro per l'immobile:</span>
               <select value={immobilePiano} onChange={(e) => setImmobilePiano(e.target.value)} className={sel}>
                 <option value="">— scegli l'immobile —</option>
@@ -260,7 +261,7 @@ export default function PaginaCondominio() {
               </select>
               <Bottone disabled={!immobilePiano || vociInsolute(immobilePiano).length === 0} onClick={() => setPianoAperto(nuovoPiano(immobilePiano))}>Crea piano</Bottone>
               {immobilePiano && vociInsolute(immobilePiano).length === 0 && <span className="text-gray-500">Nessun bollettino insoluto per questo immobile: inseriscili prima in "Bollettini e rate".</span>}
-            </div>
+            </div></SoloSeModifica>
             <Tabella righe={filtraTesto(piani.map((p) => { const imm = immobili.find((i) => i.id === p.immobile_id); const rate = rateDelPiano(p.id); return { ...p, immobile: imm?.indirizzo ?? '—', societa: societaDi(imm), condominio: condominioDi(p.condominio_id)?.denominazione ?? '', ratePagate: rate.filter((r) => r.pagata === 'si').length, rateTot: rate.length, pagato: rate.filter((r) => r.pagata === 'si').reduce((s, r) => s + (r.importo_cent ?? 0), 0), prossima: rate.find((r) => r.pagata !== 'si')?.scadenza ?? '' } }), ricerca)}
               onRiga={(p) => setPianoAperto(piani.find((x) => x.id === p.id) ?? null)} vuoto="Nessun piano di rientro. Scegli un immobile qui sopra per crearne uno dai bollettini insoluti." colonne={[
               { chiave: 'st', etichetta: 'Stato', render: (p) => <Etichetta tono={p.stato === 'attivo' ? 'blu' : p.stato === 'concluso' ? 'verde' : 'grigio'}>{etichettaDi(STATI_PIANO, p.stato)}</Etichetta> },
@@ -291,7 +292,7 @@ export default function PaginaCondominio() {
                     <span className="font-medium">{imm.indirizzo}</span>
                     {cond ? <span className="text-gray-500">{cond.denominazione}{cond.amministratore_nome ? ` · amm. ${cond.amministratore_nome}` : ''}{cond.amministratore_telefono ? ` · ${cond.amministratore_telefono}` : ''}</span> : <Etichetta tono="giallo">condominio non indicato</Etichetta>}
                     {conduttoreDi(imm.id) && <span className="text-gray-500">· conduttore {conduttoreDi(imm.id)}</span>}
-                    <button onClick={() => setAperta(nuova(imm))} className="ml-auto text-xs hover:underline" style={{ color: 'var(--colore-primario)' }}>+ aggiungi voce</button>
+                    <SoloSeModifica><button onClick={() => setAperta(nuova(imm))} className="ml-auto text-xs hover:underline" style={{ color: 'var(--colore-primario)' }}>+ aggiungi voce</button></SoloSeModifica>
                   </div>
                   <Tabella righe={vs} onRiga={(v) => setAperta(voci.find((x) => x.id === v.id) ?? null)} vuoto="Nessuna voce registrata per questo immobile." colonne={[
                     { chiave: 'es', etichetta: 'Esercizio', render: (v) => v.esercizio },

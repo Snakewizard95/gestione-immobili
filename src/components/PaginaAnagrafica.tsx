@@ -5,6 +5,7 @@ import { useSessioneAttiva } from '../lib/sessione'
 import { aggiorna, attivi, campiModifica, campiNuovo, type NomeCollezione, type RecordBase } from '../lib/store'
 import { useCollezioni } from '../lib/useCollezioni'
 import Modulo, { type CampoDef } from './Modulo'
+import { SoloSeModifica } from './SoloLettura'
 import { righeDaCampi, scaricaExcel } from '../lib/esporta'
 import { Avviso, BarraRicerca, Bottone, Caricamento, Finestra, Tabella, filtraTesto, type Colonna } from './ui'
 
@@ -66,7 +67,7 @@ export default function PaginaAnagrafica<T extends RecordBase>(p: Props<T>) {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">{p.titolo}</h1>
-        <Bottone onClick={() => setAperto({ ...p.vuotoNuovo })}><span className="flex items-center gap-1"><Plus size={16} /> {nuovo} {p.singolare}</span></Bottone>
+        <SoloSeModifica><Bottone onClick={() => setAperto({ ...p.vuotoNuovo })}><span className="flex items-center gap-1"><Plus size={16} /> {nuovo} {p.singolare}</span></Bottone></SoloSeModifica>
       </div>
       {p.intestazioneExtra}
       <div className="mt-4 flex items-center justify-between gap-3">

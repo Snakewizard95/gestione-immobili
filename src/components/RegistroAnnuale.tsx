@@ -10,6 +10,7 @@ import { SI_NO, TIPOLOGIE_CONTRATTO, etichettaDi, statoIva, type Allegato, type 
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaData, formattaEuro } from '../lib/utils/formato'
 import Allegati from './Allegati'
+import { SoloSeModifica } from './SoloLettura'
 import Modulo, { type CampoDef } from './Modulo'
 import { Avviso, Bottone, Etichetta, Finestra, Tabella } from './ui'
 
@@ -158,7 +159,7 @@ export default function RegistroAnnuale({ contratto, descrizione }: Props) {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-500">Una riga per ogni annualità: ISTAT sul canone mensile, imposta di registro pagata e rimborso del conduttore, con le ricevute allegate.</p>
-        <Bottone onClick={() => setAperta(nuova())}><span className="flex items-center gap-1"><Plus size={16} /> Aggiungi annualità</span></Bottone>
+        <SoloSeModifica><Bottone onClick={() => setAperta(nuova())}><span className="flex items-center gap-1"><Plus size={16} /> Aggiungi annualità</span></Bottone></SoloSeModifica>
       </div>
       {!contratto.data_decorrenza && <div className="mt-3"><Avviso tipo="attenzione">Il contratto non ha la data di decorrenza: inseriscila nella scheda Dati e l'inizio di ogni annualità verrà compilato da solo.</Avviso></div>}
       <div className="mt-4">

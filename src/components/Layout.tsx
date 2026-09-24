@@ -3,7 +3,8 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Building2, Home, Users, Landmark, FileText, Euro, Receipt, FileSpreadsheet, History, Settings, LogOut, Menu, X, Briefcase, Percent,
 } from 'lucide-react'
-import { useSessione } from '../lib/sessione'
+import { useSessione, useUtente } from '../lib/sessione'
+import { puoVedere, sezioneDiPercorso } from '../lib/permessi'
 import { giorniAllaScadenza } from '../lib/auth'
 import { CONFIG } from '../config'
 import { MODO_DEMO } from '../lib/github'
@@ -27,7 +28,9 @@ const VOCI = [
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { sessione, esci } = useSessione()
+  const utente = useUtente()
   const navigate = useNavigate()
+  const visibile = (a: string) => { const s = sezioneDiPercorso(a); return s ? puoVedere(utente, s) : true }
   const [aperto, setAperto] = useState(false)
   const giorni = giorniAllaScadenza(sessione?.scadenzaToken ?? null)
   const avvisoToken = giorni !== null && giorni <= CONFIG.avvisoScadenzaTokenGiorni
@@ -36,7 +39,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   const menu = (
     <nav className="flex flex-col gap-1 p-3">
-      {VOCI.map((v, i) =>
+      {VOCI.filter((v, i) => 'sep' in v ? VOCI.slice(i + 1).some((w) => 'a' in w && visibile(w.a)) && !('sep' in (VOCI[i + 1] ?? {})) : visibile(v.a)).map((v, i) =>
         'sep' in v ? (
           <div key={i} className="mt-4 mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-white/50">{v.sep}</div>
         ) : (
@@ -69,7 +72,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
         <div className="flex-1 overflow-y-auto">{menu}</div>
         <div className="border-t border-white/10 p-4 text-sm text-white/80">
-          <div className="truncate">Collegato come <span className="font-medium text-white">{sessione?.nome}</span></div>
+          <div className="truncate">Collegato come <span className="font-medium text-white">{sessione?.nome}</span>{utente?.ruolo === 'admin' && <span className="ml-1 rounded bg-white/15 px-1.5 py-0.5 text-[10px] uppercase">admin</span>}</div>
           <button onClick={esciEVai} className="mt-2 flex items-center gap-2 text-white/70 hover:text-white"><LogOut size={16} /> Esci</button>
         </div>
       </aside>

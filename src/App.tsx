@@ -1,5 +1,8 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { FornitoreSessione, useSessione } from './lib/sessione'
+import { FornitoreSessione, useSessione, useUtente } from './lib/sessione'
+import { ContestoSoloLettura } from './components/SoloLettura'
+import { primoPercorso, puoModificare, puoVedere, type Sezione } from './lib/permessi'
+import type { ReactNode } from 'react'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -22,29 +25,37 @@ function AreaProtetta() {
   if (!sessione) return <Navigate to="/login" replace />
   return (
     <Routes>
-      <Route path="/stampa/immobile/:id" element={<SchedaImmobile />} />
+      <Route path="/stampa/immobile/:id" element={<Guardia sezione="contratti"><SchedaImmobile /></Guardia>} />
       <Route path="/*" element={<AreaConMenu />} />
     </Routes>
   )
 }
 
+/** Controlla il permesso dell'utente sulla sezione: se non può vederla lo rimanda alla prima consentita; se può solo leggerla, attiva la sola lettura. */
+function Guardia({ sezione, children }: { sezione: Sezione; children: ReactNode }) {
+  const utente = useUtente()
+  if (!puoVedere(utente, sezione)) return <Navigate to={primoPercorso(utente)} replace />
+  return <ContestoSoloLettura.Provider value={!puoModificare(utente, sezione)}>{children}</ContestoSoloLettura.Provider>
+}
+
 function AreaConMenu() {
+  const utente = useUtente()
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/societa" element={<PaginaSocieta />} />
-        <Route path="/immobili" element={<PaginaImmobili />} />
-        <Route path="/conduttori" element={<PaginaConduttori />} />
-        <Route path="/condomini" element={<PaginaCondomini />} />
-        <Route path="/contratti" element={<PaginaContratti />} />
-        <Route path="/registro" element={<PaginaRegistro />} />
-        <Route path="/canoni" element={<PaginaCanoni />} />
-        <Route path="/condominio" element={<PaginaCondominio />} />
-        <Route path="/importa" element={<PaginaImporta />} />
-        <Route path="/storico" element={<PaginaStorico />} />
-        <Route path="/impostazioni" element={<Impostazioni />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/" element={<Guardia sezione="dashboard"><Dashboard /></Guardia>} />
+        <Route path="/societa" element={<Guardia sezione="anagrafiche"><PaginaSocieta /></Guardia>} />
+        <Route path="/immobili" element={<Guardia sezione="anagrafiche"><PaginaImmobili /></Guardia>} />
+        <Route path="/conduttori" element={<Guardia sezione="anagrafiche"><PaginaConduttori /></Guardia>} />
+        <Route path="/condomini" element={<Guardia sezione="anagrafiche"><PaginaCondomini /></Guardia>} />
+        <Route path="/contratti" element={<Guardia sezione="contratti"><PaginaContratti /></Guardia>} />
+        <Route path="/registro" element={<Guardia sezione="registro"><PaginaRegistro /></Guardia>} />
+        <Route path="/canoni" element={<Guardia sezione="canoni"><PaginaCanoni /></Guardia>} />
+        <Route path="/condominio" element={<Guardia sezione="condominio"><PaginaCondominio /></Guardia>} />
+        <Route path="/importa" element={<Guardia sezione="importa"><PaginaImporta /></Guardia>} />
+        <Route path="/storico" element={<Guardia sezione="storico"><PaginaStorico /></Guardia>} />
+        <Route path="/impostazioni" element={<Guardia sezione="impostazioni"><Impostazioni /></Guardia>} />
+        <Route path="*" element={<Navigate to={primoPercorso(utente)} replace />} />
       </Routes>
     </Layout>
   )

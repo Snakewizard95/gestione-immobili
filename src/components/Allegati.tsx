@@ -13,6 +13,7 @@ import { CATEGORIE_ALLEGATO, etichettaDi, type Allegato, type Opzione } from '..
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaByte, formattaData } from '../lib/utils/formato'
 import { Avviso, Etichetta } from './ui'
+import { useSoloLettura } from './SoloLettura'
 
 const LIMITE_DEMO = 2 * 1024 * 1024
 
@@ -35,6 +36,7 @@ export default function Allegati({ collezione, recordId, categorie = CATEGORIE_A
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, setInCorso] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const soloLettura = useSoloLettura()
 
   const elenco = attivi(dati<Allegato>('allegati')).filter((a) => a.collezione === collezione && a.record_id === recordId)
     .sort((a, b) => b.creato_il.localeCompare(a.creato_il))
@@ -85,6 +87,7 @@ export default function Allegati({ collezione, recordId, categorie = CATEGORIE_A
       <div className="flex flex-wrap items-center gap-2">
         <Paperclip size={16} className="text-gray-500" />
         <span className="text-sm font-medium">Allegati ({elenco.length})</span>
+        {!soloLettura && <>
         <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="ml-auto rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm">
           {categorie.map((c) => <option key={c.valore} value={c.valore}>{c.etichetta}</option>)}
         </select>
@@ -92,6 +95,7 @@ export default function Allegati({ collezione, recordId, categorie = CATEGORIE_A
           {inCorso ?? 'Carica file…'}
           <input ref={inputRef} type="file" className="hidden" disabled={!!inCorso} onChange={(e) => carica(e.target.files?.[0])} accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx,.p7m" />
         </label>
+        </>}
       </div>
       {errore && <div className="mt-2"><Avviso tipo="attenzione">{errore}</Avviso></div>}
       {elenco.length > 0 && (
@@ -103,7 +107,7 @@ export default function Allegati({ collezione, recordId, categorie = CATEGORIE_A
               <span className="text-gray-400">{formattaByte(a.dimensione_byte)} · {formattaData(a.creato_il)} · {a.creato_da}</span>
               <span className="ml-auto flex gap-1">
                 <button onClick={() => apri(a)} title="Apri / scarica" className="rounded p-1 text-gray-500 hover:bg-gray-100"><Download size={16} /></button>
-                <button onClick={() => elimina(a)} title="Elimina" className="rounded p-1 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 size={16} /></button>
+                {!soloLettura && <button onClick={() => elimina(a)} title="Elimina" className="rounded p-1 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 size={16} /></button>}
               </span>
             </li>
           ))}

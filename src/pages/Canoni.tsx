@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Eye, EyeOff, FileSpreadsheet, Plus } from 'lucide-react'
 import { righeDaCampi, scaricaExcel } from '../lib/esporta'
+import { SoloSeModifica } from '../components/SoloLettura'
 import Allegati from '../components/Allegati'
 import Modulo, { type CampoDef } from '../components/Modulo'
 import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Tabella, filtraTesto } from '../components/ui'
@@ -160,7 +161,7 @@ export default function PaginaCanoni() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Canoni e incassi</h1>
-        <Bottone onClick={() => setAperto(nuovoGenerico())}><span className="flex items-center gap-1"><Plus size={16} /> Nuovo movimento (rimborso, deposito…)</span></Bottone>
+        <SoloSeModifica><Bottone onClick={() => setAperto(nuovoGenerico())}><span className="flex items-center gap-1"><Plus size={16} /> Nuovo movimento (rimborso, deposito…)</span></Bottone></SoloSeModifica>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <div className="flex rounded-lg border border-gray-300 bg-white p-0.5 text-sm">
@@ -214,7 +215,7 @@ export default function PaginaCanoni() {
                           <tr key={c.id} className="border-b last:border-0">
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-1 font-medium">{c.immobile}
-                                <button title={c.gestione_incassi === 'no' ? 'Mostra di nuovo negli incassi' : 'Nascondi dagli incassi (non gestito da noi)'} onClick={() => impostaGestione(c, c.gestione_incassi === 'no' ? 'si' : 'no')} className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">{c.gestione_incassi === 'no' ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                                <SoloSeModifica><button title={c.gestione_incassi === 'no' ? 'Mostra di nuovo negli incassi' : 'Nascondi dagli incassi (non gestito da noi)'} onClick={() => impostaGestione(c, c.gestione_incassi === 'no' ? 'si' : 'no')} className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">{c.gestione_incassi === 'no' ? <Eye size={14} /> : <EyeOff size={14} />}</button></SoloSeModifica>
                                 {c.gestione_incassi === 'no' && <Etichetta tono="grigio">non gestito da noi</Etichetta>}
                               </div>
                               <div className="text-gray-500">{c.conduttore} <Etichetta tono={statoIva(c).tono}>{statoIva(c).testo}</Etichetta></div>

@@ -1,0 +1,17 @@
+{
+  "_nota": "Utenti della piattaforma e sezioni consentite. Livelli: modifica | lettura | nessuno. Le password NON sono qui: sono in config.token.json (cifrate). Dopo ogni modifica eseguire `npm run cifra-token`.",
+  "utenti": [
+    {
+      "id": "davide", "nome": "Davide", "ruolo": "admin",
+      "sezioni": { "dashboard": "modifica", "contratti": "modifica", "registro": "modifica", "canoni": "modifica", "condominio": "modifica", "anagrafiche": "modifica", "importa": "modifica", "storico": "modifica", "impostazioni": "modifica" }
+    },
+    {
+      "id": "emanuela", "nome": "Emanuela", "ruolo": "collaboratore",
+      "sezioni": { "dashboard": "modifica", "contratti": "modifica", "registro": "modifica", "canoni": "modifica", "condominio": "modifica", "anagrafiche": "modifica", "importa": "modifica", "storico": "modifica", "impostazioni": "lettura" }
+    },
+    {
+      "id": "veronica", "nome": "Veronica", "ruolo": "collaboratore",
+      "sezioni": { "dashboard": "nessuno", "contratti": "nessuno", "registro": "nessuno", "canoni": "modifica", "condominio": "nessuno", "anagrafiche": "nessuno", "importa": "nessuno", "storico": "nessuno", "impostazioni": "lettura" }
+    }
+  ]
+}

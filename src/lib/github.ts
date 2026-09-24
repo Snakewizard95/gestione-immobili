@@ -12,7 +12,7 @@ const API = 'https://api.github.com'
  * schermate prima della pubblicazione. Nessun dato lascia il computer.
  */
 export const TOKEN_DEMO = 'DEMO'
-export const MODO_DEMO = !CONFIG.tokenCifrato.dati
+export const MODO_DEMO = Object.keys(CONFIG.tokenCifrato.utenti ?? {}).length === 0
 const PREFISSO_DEMO = 'gestione-immobili.demo.'
 
 function demoLeggi(percorso: string): FileLetto | null {

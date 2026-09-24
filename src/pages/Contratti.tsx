@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FileSpreadsheet, Plus, Printer } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { righeDaCampi, scaricaExcel } from '../lib/esporta'
+import { SoloSeModifica } from '../components/SoloLettura'
 import Allegati from '../components/Allegati'
 import Modulo, { type CampoDef } from '../components/Modulo'
 import RegistroAnnuale from '../components/RegistroAnnuale'
@@ -117,7 +118,7 @@ export default function PaginaContratti() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Contratti di locazione</h1>
-        <Bottone onClick={() => { setTab('dati'); setAperto({ ...VUOTO }) }}><span className="flex items-center gap-1"><Plus size={16} /> Nuovo contratto</span></Bottone>
+        <SoloSeModifica><Bottone onClick={() => { setTab('dati'); setAperto({ ...VUOTO }) }}><span className="flex items-center gap-1"><Plus size={16} /> Nuovo contratto</span></Bottone></SoloSeModifica>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <div className="flex rounded-lg border border-gray-300 bg-white p-0.5 text-sm">

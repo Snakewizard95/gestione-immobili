@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Avviso, Bottone, Tabella } from '../components/ui'
+import { useSoloLettura } from '../components/SoloLettura'
 import { MODO_DEMO } from '../lib/github'
 import { analizzaRendimentiAffitti, preparaImportazione, type PianoImportazione, type RigaImportata } from '../lib/importaExcel'
 import { useSessioneAttiva } from '../lib/sessione'
@@ -20,6 +21,7 @@ export default function PaginaImporta() {
   const [esito, setEsito] = useState<string | null>(null)
   const [inCorso, setInCorso] = useState(false)
   const [fileLocale, setFileLocale] = useState(false)
+  const soloLettura = useSoloLettura()
 
   useEffect(() => {
     if (!import.meta.env.DEV) return
@@ -66,10 +68,11 @@ export default function PaginaImporta() {
       <h1 className="text-2xl font-semibold">Importa da Excel</h1>
       <p className="mt-1 text-gray-500">Formato riconosciuto: foglio "Rendimenti Affitti". Vengono lette le colonne Proprietà, Immobile, Conduttore, Affitto e Imposta Registro; le altre vengono ignorate.</p>
 
+      {soloLettura && <div className="mt-4"><Avviso tipo="info">Hai accesso in sola lettura: l'importazione è riservata a chi può modificare i dati.</Avviso></div>}
       <div className="mt-6 flex flex-wrap items-center gap-3 rounded-xl bg-white p-5 shadow-sm">
         <label className="cursor-pointer rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50">
           Scegli file Excel…
-          <input type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => daFile(e.target.files?.[0])} disabled={caricamento} />
+          <input type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => daFile(e.target.files?.[0])} disabled={caricamento || soloLettura} />
         </label>
         {fileLocale && MODO_DEMO && <Bottone variante="secondario" onClick={daLocale} disabled={caricamento}>Carica "affitti aggiornati.xlsx" dalla cartella del progetto</Bottone>}
       </div>

@@ -6,6 +6,7 @@ import { useState, type FormEvent } from 'react'
 import type { Opzione } from '../lib/tipi'
 import { analizzaEuro, formattaEuro } from '../lib/utils/formato'
 import { Avviso, Bottone } from './ui'
+import { useSoloLettura } from './SoloLettura'
 
 export type TipoCampo = 'testo' | 'textarea' | 'numero' | 'euro' | 'data' | 'select' | 'percentuale' | 'multiselect'
 
@@ -52,6 +53,7 @@ export default function Modulo<T>({ campi, iniziale, onSalva, onAnnulla, onElimi
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, setInCorso] = useState(false)
   const [confermaElimina, setConfermaElimina] = useState(false)
+  const soloLettura = useSoloLettura()
 
   function imposta(nome: string, v: unknown) {
     setValori((prec) => {
@@ -81,7 +83,8 @@ export default function Modulo<T>({ campi, iniziale, onSalva, onAnnulla, onElimi
   return (
     <form onSubmit={invia}>
       <div className="grid gap-4 sm:grid-cols-2">
-        {campi.map((c) => {
+        {campi.map((cOrig) => {
+          const c = soloLettura ? { ...cOrig, soloLettura: true } : cOrig
           const v = valori[c.nome]
           return (
             <div key={c.nome} className={`${c.intera || c.tipo === 'textarea' || c.tipo === 'multiselect' ? 'sm:col-span-2' : ''} ${c.sezione ? 'sm:col-span-2' : ''}`}>
@@ -126,10 +129,11 @@ export default function Modulo<T>({ campi, iniziale, onSalva, onAnnulla, onElimi
 
       {errore && <div className="mt-4"><Avviso tipo="errore">{errore}</Avviso></div>}
 
+      {soloLettura && <div className="mt-4"><Avviso tipo="info">Hai accesso in sola lettura a questa sezione: puoi consultare ma non modificare.</Avviso></div>}
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
         <div>
-          {onElimina && !confermaElimina && <Bottone type="button" variante="pericolo" onClick={() => setConfermaElimina(true)}>Elimina</Bottone>}
-          {onElimina && confermaElimina && (
+          {!soloLettura && onElimina && !confermaElimina && <Bottone type="button" variante="pericolo" onClick={() => setConfermaElimina(true)}>Elimina</Bottone>}
+          {!soloLettura && onElimina && confermaElimina && (
             <span className="flex items-center gap-2 text-sm">
               Confermi l'eliminazione? <Bottone type="button" variante="pericolo" disabled={inCorso} onClick={elimina}>Sì, elimina</Bottone>
               <Bottone type="button" variante="secondario" onClick={() => setConfermaElimina(false)}>No</Bottone>
@@ -137,8 +141,8 @@ export default function Modulo<T>({ campi, iniziale, onSalva, onAnnulla, onElimi
           )}
         </div>
         <div className="flex gap-2">
-          <Bottone type="button" variante="secondario" onClick={onAnnulla}>Annulla</Bottone>
-          <Bottone type="submit" disabled={inCorso}>{inCorso ? 'Salvataggio…' : etichettaSalva}</Bottone>
+          <Bottone type="button" variante="secondario" onClick={onAnnulla}>{soloLettura ? 'Chiudi' : 'Annulla'}</Bottone>
+          {!soloLettura && <Bottone type="submit" disabled={inCorso}>{inCorso ? 'Salvataggio…' : etichettaSalva}</Bottone>}
         </div>
       </div>
     </form>

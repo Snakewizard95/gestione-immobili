@@ -6,17 +6,18 @@
  * pubblico: senza la password è illeggibile. Lo stesso algoritmo è usato da scripts/cifra-token.mjs.
  */
 
+export interface BloccoCifrato { sale: string; iv: string; dati: string } // base64
+
 export interface TokenCifrato {
   versione: number
   iterazioni: number
-  sale: string     // base64
-  iv: string       // base64
-  dati: string     // base64 (token cifrato)
-  scadenza_token: string | null // AAAA-MM-GG, per l'avviso di rinnovo
+  scadenza_token: string | null       // AAAA-MM-GG, per l'avviso di rinnovo
+  utenti: Record<string, BloccoCifrato> // id utente → token cifrato con la SUA password
 }
 
 export interface Sessione {
   token: string
+  utenteId: string
   nome: string
   scadenzaToken: string | null
   accessoIl: string
@@ -42,10 +43,11 @@ async function derivaChiave(password: string, sale: Uint8Array, iterazioni: numb
   )
 }
 
-/** Decifra il token con la password. Lancia un errore in italiano se la password è sbagliata. */
-export async function decifraToken(blocco: TokenCifrato, password: string): Promise<string> {
-  if (!blocco.dati) throw new Error('Il sito non è ancora configurato: manca il token cifrato (eseguire `npm run cifra-token`).')
-  const chiave = await derivaChiave(password, base64ToBytes(blocco.sale), blocco.iterazioni)
+/** Decifra il token con la password dell'utente indicato. Lancia un errore in italiano se la password è sbagliata. */
+export async function decifraToken(cfg: TokenCifrato, utenteId: string, password: string): Promise<string> {
+  const blocco = cfg.utenti?.[utenteId]
+  if (!blocco?.dati) throw new Error(`Accesso non ancora configurato per "${utenteId}": eseguire \`npm run cifra-token\` e ripubblicare.`)
+  const chiave = await derivaChiave(password, base64ToBytes(blocco.sale), cfg.iterazioni)
   try {
     const chiaro = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: base64ToBytes(blocco.iv) as BufferSource }, chiave, base64ToBytes(blocco.dati) as BufferSource)
     return new TextDecoder().decode(chiaro)
