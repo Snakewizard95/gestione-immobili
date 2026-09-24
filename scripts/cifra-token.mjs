@@ -34,9 +34,37 @@ async function cifra(token, password) {
   return { sale: b64(sale), iv: b64(iv), dati: b64(new Uint8Array(cifrato)) }
 }
 
+/**
+ * Modalità NON interattiva (copia e incolla di un solo comando): variabili d'ambiente
+ *   TOKEN_APP=github_pat_…  SCADENZA=AAAA-MM-GG (facoltativa)  PW_DAVIDE=…  PW_EMANUELA=…  PW_VERONICA=…
+ * (una variabile PW_<ID IN MAIUSCOLO> per ogni utente di src/utenti.json; gli utenti senza variabile vengono saltati).
+ */
+async function nonInterattivo(utenti, esistente) {
+  const token = process.env.TOKEN_APP
+  if (!token.startsWith('github_pat_') && !token.startsWith('ghp_')) { console.error('TOKEN_APP non sembra un token GitHub.'); process.exit(1) }
+  const scadenza = process.env.SCADENZA || ''
+  if (scadenza && !/^\d{4}-\d{2}-\d{2}$/.test(scadenza)) { console.error('SCADENZA non valida: usare AAAA-MM-GG.'); process.exit(1) }
+  const blocchi = { ...(esistente.utenti ?? {}) }
+  for (const u of utenti) {
+    const pw = process.env['PW_' + u.id.toUpperCase()]
+    if (!pw) { console.log(`  – ${u.nome}: nessuna password fornita, saltato`); continue }
+    if (pw.length < 10) { console.error(`Password di ${u.nome} troppo corta (minimo 10 caratteri).`); process.exit(1) }
+    blocchi[u.id] = await cifra(token, pw)
+    console.log(`  ✓ ${u.nome}`)
+  }
+  for (const id of Object.keys(blocchi)) if (!utenti.some((u) => u.id === id)) delete blocchi[id]
+  const uscita = { versione: 2, algoritmo: 'AES-GCM-256 / PBKDF2-SHA256', iterazioni: ITERAZIONI, scadenza_token: scadenza || null, utenti: blocchi, nota: 'Token GitHub cifrato con la password di ciascun utente. Senza la password è illeggibile.' }
+  writeFileSync(destinazione, JSON.stringify(uscita, null, 2) + '\n')
+  console.log(`\nFatto. File scritto: ${destinazione}\n`)
+}
+
 async function main() {
   console.log('\n=== Cifratura del token GitHub per gli utenti di Gestione Immobili ===\n')
   const utenti = JSON.parse(readFileSync(fileUtenti, 'utf8')).utenti
+  if (process.env.TOKEN_APP) {
+    const esistente = existsSync(destinazione) ? JSON.parse(readFileSync(destinazione, 'utf8')) : {}
+    return nonInterattivo(utenti, esistente)
+  }
   console.log('Utenti trovati in src/utenti.json:', utenti.map((u) => `${u.nome} (${u.id})`).join(', '), '\n')
 
   const esistente = existsSync(destinazione) ? JSON.parse(readFileSync(destinazione, 'utf8')) : {}
