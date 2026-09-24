@@ -13,7 +13,7 @@ import Modulo, { type CampoDef } from '../components/Modulo'
 import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Tabella, filtraTesto } from '../components/ui'
 import { useSessioneAttiva } from '../lib/sessione'
 import { aggiorna, attivi, campiModifica, campiNuovo } from '../lib/store'
-import { canoneMensilePer, descriviCanone, scaglioniAnno } from '../lib/canone'
+import { canoneMensilePer, descriviCanone, scaglioniAnno, totaliAnnoContratto } from '../lib/canone'
 import { MODALITA_INCASSO, STATI_MOVIMENTO, TIPI_MOVIMENTO, etichettaDi, statoIva, type Annualita, type Conduttore, type Contratto, type Immobile, type Movimento, type Societa } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaData, formattaEuro } from '../lib/utils/formato'
@@ -132,14 +132,17 @@ export default function PaginaCanoni() {
   const inizioContratto = (c: Contratto) => c.data_decorrenza ? c.data_decorrenza.slice(0, 7) : ''
   const fineContratto = (c: Contratto) => c.data_cessazione ? c.data_cessazione.slice(0, 7) : ''
 
-  const canoniAnno = movimenti.filter((m) => m.tipo === 'canone' && m.competenza.startsWith(String(anno)))
-  const totaliDi = (ids: string[]) => {
-    const mm = canoniAnno.filter((m) => ids.includes(m.contratto_id) && m.stato !== 'stornato')
-    return { dovuto: mm.reduce((s, m) => s + (m.dovuto_cent ?? 0), 0), incassato: mm.reduce((s, m) => s + (m.incassato_cent ?? 0), 0) }
-  }
-  const totDovuto = canoniAnno.reduce((s, m) => s + (m.dovuto_cent ?? 0), 0)
-  const totIncassato = canoniAnno.reduce((s, m) => s + (m.incassato_cent ?? 0), 0)
-  const insoluti = canoniAnno.filter((m) => m.stato === 'da_incassare' || m.stato === 'parziale').reduce((s, m) => s + ((m.dovuto_cent ?? 0) - (m.incassato_cent ?? 0)), 0)
+  /** Dovuto = mesi già iniziati dell'anno × canone in vigore (o movimento registrato); incassato = somma degli incassi. */
+  const totaliDi = (ids: string[]) => ids.reduce((t, id) => {
+    const c = contratti.find((x) => x.id === id)
+    if (!c) return t
+    const r = totaliAnnoContratto(c, annualita, movimenti, anno, oggiMese)
+    return { dovuto: t.dovuto + r.dovuto, incassato: t.incassato + r.incassato }
+  }, { dovuto: 0, incassato: 0 })
+  const totGriglia = totaliDi(attiviC.map((c) => c.id))
+  const totDovuto = totGriglia.dovuto
+  const totIncassato = totGriglia.incassato
+  const insoluti = Math.max(0, totDovuto - totIncassato)
 
   // ---- Elenco movimenti ----
   const elenco = filtraTesto(movimenti.map((m) => ({ ...m, ...descrivi(contrattoDi(m.contratto_id)), tipoTesto: etichettaDi(TIPI_MOVIMENTO, m.tipo) })), ricerca)

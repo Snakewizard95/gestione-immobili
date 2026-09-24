@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Printer } from 'lucide-react'
 import { Bottone, Caricamento } from '../components/ui'
-import { canoneMensilePer, descriviCanone } from '../lib/canone'
+import { canoneMensilePer, descriviCanone, totaliAnnoContratto } from '../lib/canone'
 import { attivi } from '../lib/store'
 import {
   A_CARICO, MODALITA_REGISTRAZIONE, PERIODICITA, STATI_PIANO, TIPI_VOCE_CONDOMINIO, TIPOLOGIE_CONTRATTO, TIPOLOGIE_IMMOBILE, etichettaDi, statoIva,
@@ -73,9 +73,10 @@ export default function SchedaImmobile() {
   const cond_ = (cid: string) => conduttori.find((k) => k.id === cid)
   const somma = (xs: Array<number | null | undefined>) => xs.reduce<number>((s, n) => s + (n ?? 0), 0)
 
-  const dovutoAnno = somma(canoniAnno.filter((m) => m.stato !== 'stornato').map((m) => m.dovuto_cent))
-  const incassatoAnno = somma(canoniAnno.map((m) => m.incassato_cent))
-  const insolutiMesi = attivo ? MESI.map((_, i) => `${anno}-${String(i + 1).padStart(2, '0')}`).filter((mese) => mese <= oggi.slice(0, 7) && (!attivo.data_decorrenza || mese >= attivo.data_decorrenza.slice(0, 7))).filter((mese) => { const m = canoniAnno.find((x) => x.contratto_id === attivo.id && x.competenza === mese); return !m || m.stato === 'da_incassare' || m.stato === 'parziale' }) : []
+  const totAnno = attivo ? totaliAnnoContratto(attivo, annualita, movimenti, anno, oggi.slice(0, 7)) : { dovuto: 0, incassato: 0, mesiNonIncassati: [] as string[] }
+  const dovutoAnno = totAnno.dovuto
+  const incassatoAnno = totAnno.incassato
+  const insolutiMesi = totAnno.mesiNonIncassati
   const vociNonPagate = voci.filter((v) => v.pagata !== 'si')
   const scaduto = somma(vociNonPagate.filter((v) => !v.in_piano_id && v.scadenza && v.scadenza < oggi).map((v) => v.importo_cent))
   const daRiaddebitare = somma(voci.filter((v) => (v.quota_conduttore_cent ?? 0) > 0 && v.riaddebitata !== 'si').map((v) => v.quota_conduttore_cent))

@@ -55,3 +55,35 @@ export function descriviCanone(k: CanoneMese, formattaEuro: (n: number | null) =
   if (!k.iva_percento) return formattaEuro(k.totale_cent)
   return `${formattaEuro(k.totale_cent)} (${formattaEuro(k.imponibile_cent)} + IVA ${k.iva_percento}% ${formattaEuro(k.iva_cent)})`
 }
+
+/**
+ * Dovuto e incassato di un contratto per un anno.
+ * Il dovuto conta TUTTI i mesi del periodo di validità del contratto già iniziati (fino al mese corrente),
+ * usando il movimento registrato se esiste oppure il canone atteso in quel mese: così un anno senza
+ * registrazioni mostra il dovuto reale, non zero.
+ */
+export function totaliAnnoContratto(
+  c: Contratto, tutte: Annualita[], movimenti: Array<{ contratto_id: string; tipo: string; competenza: string; stato: string; dovuto_cent: number | null; incassato_cent: number | null }>,
+  anno: number, oggiMese: string,
+): { dovuto: number; incassato: number; mesiNonIncassati: string[] } {
+  let dovuto = 0, incassato = 0
+  const mesiNonIncassati: string[] = []
+  const inizio = c.data_decorrenza ? c.data_decorrenza.slice(0, 7) : ''
+  const fine = c.data_cessazione ? c.data_cessazione.slice(0, 7) : ''
+  for (let i = 1; i <= 12; i++) {
+    const mese = `${anno}-${String(i).padStart(2, '0')}`
+    if (mese > oggiMese) break
+    if ((inizio && mese < inizio) || (fine && mese > fine)) continue
+    const m = movimenti.find((x) => x.contratto_id === c.id && x.tipo === 'canone' && x.competenza === mese)
+    if (m) {
+      if (m.stato === 'stornato') continue
+      dovuto += m.dovuto_cent ?? 0; incassato += m.incassato_cent ?? 0
+      if (m.stato === 'da_incassare' || m.stato === 'parziale') mesiNonIncassati.push(mese)
+    } else {
+      const atteso = canoneMensilePer(c, tutte, mese).totale_cent ?? 0
+      dovuto += atteso
+      if (atteso > 0) mesiNonIncassati.push(mese)
+    }
+  }
+  return { dovuto, incassato, mesiNonIncassati }
+}
