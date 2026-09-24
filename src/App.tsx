@@ -5,6 +5,13 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Impostazioni from './pages/Impostazioni'
 import Segnaposto from './pages/Segnaposto'
+import PaginaSocieta from './pages/Societa'
+import PaginaImmobili from './pages/Immobili'
+import PaginaConduttori from './pages/Conduttori'
+import PaginaCondomini from './pages/Condomini'
+import PaginaContratti from './pages/Contratti'
+import PaginaImporta from './pages/Importa'
+import PaginaStorico from './pages/Storico'
 
 /** Mostra le pagine interne solo se l'utente ha effettuato l'accesso. */
 function AreaProtetta() {
@@ -14,15 +21,15 @@ function AreaProtetta() {
     <Layout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/societa" element={<Segnaposto titolo="Società" fase={2} />} />
-        <Route path="/immobili" element={<Segnaposto titolo="Immobili" fase={2} />} />
-        <Route path="/conduttori" element={<Segnaposto titolo="Conduttori" fase={2} />} />
-        <Route path="/condomini" element={<Segnaposto titolo="Condomini e amministratori" fase={2} />} />
-        <Route path="/contratti" element={<Segnaposto titolo="Contratti di locazione" fase={3} />} />
+        <Route path="/societa" element={<PaginaSocieta />} />
+        <Route path="/immobili" element={<PaginaImmobili />} />
+        <Route path="/conduttori" element={<PaginaConduttori />} />
+        <Route path="/condomini" element={<PaginaCondomini />} />
+        <Route path="/contratti" element={<PaginaContratti />} />
         <Route path="/canoni" element={<Segnaposto titolo="Canoni e incassi" fase={4} />} />
         <Route path="/condominio" element={<Segnaposto titolo="Oneri condominiali" fase={5} />} />
-        <Route path="/importa" element={<Segnaposto titolo="Importa da Excel" fase={7} />} />
-        <Route path="/storico" element={<Segnaposto titolo="Storico modifiche" fase={8} />} />
+        <Route path="/importa" element={<PaginaImporta />} />
+        <Route path="/storico" element={<PaginaStorico />} />
         <Route path="/impostazioni" element={<Impostazioni />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
