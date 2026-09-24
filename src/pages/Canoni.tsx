@@ -195,7 +195,7 @@ export default function PaginaCanoni() {
         {errore && <Avviso tipo="errore">{errore}</Avviso>}
         {caricamento && !errore ? <Caricamento /> : scheda === 'griglia' ? (
           <>
-            <p className="mb-3 text-xs text-gray-500">Ogni cella mostra l'importo incassato nel mese (verde), incassato in parte (giallo) o atteso e non incassato dopo la scadenza (rosso). Grigio = mese futuro, non ancora scaduto o fuori dal periodo del contratto. I canoni scadono il 10 di ogni mese, salvo il giorno indicato nel contratto. Clicca una cella per registrare l'incasso.</p>
+            <p className="mb-3 text-xs text-gray-500"><strong>Legenda:</strong> <span className="font-medium text-green-800">✓ 1.220</span> incassato · <span className="font-medium text-amber-800">½ 500</span> incassato in parte · <span className="font-bold text-red-700">! 1.220</span> scaduto e non incassato · <span className="text-gray-500">(1.220)</span> previsto, non ancora scaduto · vuoto = fuori dal periodo del contratto. I canoni scadono il 10 di ogni mese, salvo il giorno indicato nel contratto. Clicca una cella per registrare l'incasso.</p>
             {[...gruppi.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([soc, cs]) => (
               <div key={soc} className="mb-4">
                 <button onClick={() => setChiusi((s) => { const n = new Set(s); if (n.has(soc)) n.delete(soc); else n.add(soc); return n })} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-white">
@@ -239,13 +239,14 @@ export default function PaginaCanoni() {
                               const futuro = mese > oggiMese
                               const scaduto = canoneScaduto(c, mese, oggi)
                               const atteso = canoneMensilePer(c, annualita, mese).totale_cent
-                              let cls = 'bg-white hover:bg-gray-100', testo: React.ReactNode = compatto(atteso)
+                              // Simboli leggibili anche senza colori: ✓ incassato · ½ parziale · ! scaduto non incassato · (…) previsto
+                              let cls = 'bg-white hover:bg-gray-100', testo: React.ReactNode = `(${compatto(atteso)})`
                               if (m) {
-                                cls = m.stato === 'incassato' ? 'bg-green-100 text-green-900 hover:bg-green-200' : m.stato === 'parziale' ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : m.stato === 'stornato' ? 'bg-gray-200 text-gray-500' : scaduto ? 'bg-red-100 text-red-800 hover:bg-red-200' : 'bg-white text-gray-700 hover:bg-gray-100'
-                                testo = m.stato === 'stornato' ? '—' : m.stato === 'da_incassare' ? compatto(m.dovuto_cent) : compatto(m.incassato_cent)
+                                cls = m.stato === 'incassato' ? 'bg-green-100 text-green-900 hover:bg-green-200' : m.stato === 'parziale' ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : m.stato === 'stornato' ? 'bg-gray-200 text-gray-500' : scaduto ? 'bg-red-100 text-red-800 hover:bg-red-200 font-bold' : 'bg-white text-gray-700 hover:bg-gray-100'
+                                testo = m.stato === 'stornato' ? '—' : m.stato === 'incassato' ? `✓ ${compatto(m.incassato_cent)}` : m.stato === 'parziale' ? `½ ${compatto(m.incassato_cent)}` : scaduto ? `! ${compatto(m.dovuto_cent)}` : `(${compatto(m.dovuto_cent)})`
                               } else if (fuori) { cls = 'bg-gray-50 text-gray-300'; testo = '' }
                               else if (futuro || !scaduto) { cls = 'bg-gray-50 text-gray-400 hover:bg-gray-100' }
-                              else { cls = 'bg-red-50 hover:bg-red-100 text-red-500' }
+                              else { cls = 'bg-red-50 hover:bg-red-100 text-red-600 font-bold'; testo = `! ${compatto(atteso)}` }
                               return (
                                 <td key={mese} className="p-0.5">
                                   <button title={`Scadenza ${scadenzaCanone(c, mese).split('-').reverse().join('/')} · ${m ? `${etichettaDi(STATI_MOVIMENTO, m.stato)}: incassato ${formattaEuro(m.incassato_cent)} su ${formattaEuro(m.dovuto_cent)} · fattura ${m.numero_fattura || '—'}` : `atteso ${formattaEuro(atteso)} · clicca per registrare l'incasso`}`} disabled={!!fuori && !m}

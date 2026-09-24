@@ -26,6 +26,9 @@ const VOCI = [
   { a: '/impostazioni', testo: 'Impostazioni', Icona: Settings },
 ] as const
 
+/** Vero se il browser non conosce i colori moderni (es. Chrome 109 su Windows 7): il sito funziona ugualmente grazie ai valori di riserva. */
+const BROWSER_DATATO = typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && !CSS.supports('color', 'oklch(50% 0 0)')
+
 export default function Layout({ children }: { children: ReactNode }) {
   const { sessione, esci } = useSessione()
   const utente = useUtente()
@@ -94,6 +97,11 @@ export default function Layout({ children }: { children: ReactNode }) {
         {MODO_DEMO && (
           <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
             Modalità dimostrativa: i dati restano solo in questo browser e non vengono inviati a GitHub.
+          </div>
+        )}
+        {BROWSER_DATATO && (
+          <div className="mb-4 rounded-lg border border-gray-300 bg-gray-100 px-4 py-2 text-xs text-gray-700">
+            Il tuo browser è datato: il sito funziona, ma alcuni dettagli grafici potrebbero essere semplificati. Se possibile usa Firefox o Edge aggiornati (su Windows 7 è disponibile Firefox ESR).
           </div>
         )}
         {avvisoToken && (
