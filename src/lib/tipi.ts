@@ -60,10 +60,7 @@ export interface Immobile extends RecordBase {
   condominio_id: string
   millesimi: number | null
   stato: string
-  /** Dati per il calcolo del rendimento (dal foglio "Rendimenti Affitti") */
-  valore_mercato_cent: number | null
-  imu_annua_cent: number | null
-  mutuo_annuo_cent: number | null
+  /** Spese condominiali annue a carico della proprietà (indicativo; il dettaglio è nella sezione Condominio) */
   condominio_annuo_cent: number | null
   note: string
 }

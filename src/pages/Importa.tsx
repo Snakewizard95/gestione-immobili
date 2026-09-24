@@ -64,7 +64,7 @@ export default function PaginaImporta() {
   return (
     <div>
       <h1 className="text-2xl font-semibold">Importa da Excel</h1>
-      <p className="mt-1 text-gray-500">Formato riconosciuto: foglio "Rendimenti Affitti" (Proprietà, Immobile, Conduttore, Affitto, Condominio, Mutuo/Leasing, Imposta Registro, IMU, Valore di Mercato).</p>
+      <p className="mt-1 text-gray-500">Formato riconosciuto: foglio "Rendimenti Affitti". Vengono lette le colonne Proprietà, Immobile, Conduttore, Affitto, Condominio e Imposta Registro; le altre vengono ignorate.</p>
 
       <div className="mt-6 flex flex-wrap items-center gap-3 rounded-xl bg-white p-5 shadow-sm">
         <label className="cursor-pointer rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50">
@@ -87,7 +87,7 @@ export default function PaginaImporta() {
           </div>
           {piano.saltati.length > 0 && <div className="mt-3"><Avviso tipo="info">{piano.saltati.length} elementi già presenti verranno saltati.</Avviso></div>}
           <div className="mt-4 flex items-center justify-between">
-            <span className="text-sm text-gray-500">{righe.length} righe lette · affitti {formattaEuro(totale('affitto_cent'))} · IMU {formattaEuro(totale('imu_cent'))} · valore {formattaEuro(totale('valore_mercato_cent'))}</span>
+            <span className="text-sm text-gray-500">{righe.length} righe lette · affitti annui {formattaEuro(totale('affitto_cent'))} · imposta di registro {formattaEuro(totale('imposta_registro_cent'))}</span>
             <Bottone onClick={importa} disabled={inCorso || (piano.societa.length + piano.immobili.length + piano.conduttori.length + piano.contratti.length === 0)}>
               {inCorso ? 'Importazione…' : 'Conferma importazione'}
             </Bottone>
@@ -99,9 +99,7 @@ export default function PaginaImporta() {
               { chiave: 'c', etichetta: 'Conduttore', render: (r) => r.conduttore ?? <span className="text-gray-400">libero</span> },
               { chiave: 'a', etichetta: 'Affitto annuo', allinea: 'dx', render: (r) => formattaEuro(r.affitto_cent) },
               { chiave: 'r', etichetta: 'Imp. registro', allinea: 'dx', render: (r) => formattaEuro(r.imposta_registro_cent) },
-              { chiave: 'm', etichetta: 'IMU', allinea: 'dx', render: (r) => formattaEuro(r.imu_cent) },
-              { chiave: 'u', etichetta: 'Mutuo/leasing', allinea: 'dx', render: (r) => formattaEuro(r.mutuo_cent) },
-              { chiave: 'v', etichetta: 'Valore mercato', allinea: 'dx', render: (r) => formattaEuro(r.valore_mercato_cent) },
+              { chiave: 'k', etichetta: 'Spese condominiali', allinea: 'dx', render: (r) => formattaEuro(r.condominio_cent) },
             ]} />
           </div>
         </div>

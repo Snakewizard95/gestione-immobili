@@ -6,69 +6,59 @@ import type { Contratto, Immobile, Societa } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaData, formattaEuro } from '../lib/utils/formato'
 
-interface RigaRendimento {
+interface RigaSocieta {
   id: string
   societa: string
   immobili: number
-  locati: number
-  affitto: number
-  condominio: number
-  mutuo: number
+  liberi: number
+  contratti: number
+  canone_mensile: number
+  canone_annuo: number
   registro: number
-  imu: number
-  valore: number
-  netto: number
-  rendimento: number | null
-}
-
-function percentuale(n: number | null): string {
-  if (n === null) return '—'
-  return (n * 100).toFixed(2).replace('.', ',') + '%'
 }
 
 export default function Dashboard() {
   const { nome } = useSessioneAttiva()
   const { dati, caricamento, errore } = useCollezioni(['societa', 'immobili', 'contratti'])
+  const [{ oggi, tra30 }] = useState(() => ({ oggi: new Date().toISOString().slice(0, 10), tra30: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10) }))
+
   const societa = attivi(dati<Societa>('societa'))
   const immobili = attivi(dati<Immobile>('immobili'))
   const contratti = attivi(dati<Contratto>('contratti'))
   const attiviC = contratti.filter((c) => c.stato !== 'cessato')
+  const somma = (xs: Array<number | null | undefined>) => xs.reduce<number>((a, b) => a + (b ?? 0), 0)
 
-  // Rendimento per società: (affitti − condominio − mutuo − imposta registro − IMU) / valore di mercato
-  const righe: RigaRendimento[] = societa.map((s) => {
+  const righe: RigaSocieta[] = societa.map((s) => {
     const imm = immobili.filter((i) => i.societa_id === s.id)
     const ids = new Set(imm.map((i) => i.id))
     const con = attiviC.filter((c) => ids.has(c.immobile_id))
-    const somma = (xs: Array<number | null | undefined>) => xs.reduce<number>((a, b) => a + (b ?? 0), 0)
-    const affitto = somma(con.map((c) => c.canone_annuale_cent))
-    const condominio = somma(imm.map((i) => i.condominio_annuo_cent))
-    const mutuo = somma(imm.map((i) => i.mutuo_annuo_cent))
-    const registro = somma(con.map((c) => c.imposta_registro_annuale_cent))
-    const imu = somma(imm.map((i) => i.imu_annua_cent))
-    const valore = somma(imm.map((i) => i.valore_mercato_cent))
-    const netto = affitto - condominio - mutuo - registro - imu
-    return { id: s.id, societa: s.ragione_sociale, immobili: imm.length, locati: new Set(con.map((c) => c.immobile_id)).size, affitto, condominio, mutuo, registro, imu, valore, netto, rendimento: valore ? netto / valore : null }
-  }).sort((a, b) => b.affitto - a.affitto)
+    return {
+      id: s.id, societa: s.ragione_sociale, immobili: imm.length, liberi: imm.filter((i) => i.stato === 'libero').length, contratti: con.length,
+      canone_mensile: somma(con.map((c) => c.canone_mensile_cent)), canone_annuo: somma(con.map((c) => c.canone_annuale_cent)),
+      registro: somma(con.map((c) => c.imposta_registro_annuale_cent)),
+    }
+  }).sort((a, b) => b.canone_annuo - a.canone_annuo)
 
-  const tot = righe.reduce((t, r) => ({ ...t, immobili: t.immobili + r.immobili, locati: t.locati + r.locati, affitto: t.affitto + r.affitto, condominio: t.condominio + r.condominio, mutuo: t.mutuo + r.mutuo, registro: t.registro + r.registro, imu: t.imu + r.imu, valore: t.valore + r.valore, netto: t.netto + r.netto }),
-    { id: 'tot', societa: 'TOTALE GRUPPO', immobili: 0, locati: 0, affitto: 0, condominio: 0, mutuo: 0, registro: 0, imu: 0, valore: 0, netto: 0, rendimento: null as number | null })
-  tot.rendimento = tot.valore ? tot.netto / tot.valore : null
+  const tot: RigaSocieta = righe.reduce((t, r) => ({
+    ...t, immobili: t.immobili + r.immobili, liberi: t.liberi + r.liberi, contratti: t.contratti + r.contratti,
+    canone_mensile: t.canone_mensile + r.canone_mensile, canone_annuo: t.canone_annuo + r.canone_annuo, registro: t.registro + r.registro,
+  }), { id: 'tot', societa: 'TOTALE GRUPPO', immobili: 0, liberi: 0, contratti: 0, canone_mensile: 0, canone_annuo: 0, registro: 0 })
 
-  const [{ oggi, tra30 }] = useState(() => ({ oggi: new Date().toISOString().slice(0, 10), tra30: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10) }))
   const scadenze = attiviC.filter((c) => c.prima_scadenza && c.prima_scadenza >= oggi && c.prima_scadenza <= tra30)
   const senzaDate = attiviC.filter((c) => !c.data_decorrenza || !c.prima_scadenza).length
 
   const kpi = [
     ['Contratti attivi', String(attiviC.length)],
-    ['Canone annuo totale', formattaEuro(tot.affitto)],
-    ['Immobili (di cui liberi)', `${immobili.length} (${immobili.filter((i) => i.stato === 'libero').length})`],
+    ['Canone annuo totale', formattaEuro(tot.canone_annuo)],
+    ['Immobili (di cui liberi)', `${immobili.length} (${tot.liberi})`],
     ['Scadenze prossimi 30 giorni', String(scadenze.length)],
   ]
+  const grassetto = (r: RigaSocieta) => (r.id === 'tot' ? 'font-bold' : '')
 
   return (
     <div>
       <h1 className="text-2xl font-semibold">Buongiorno, {nome}</h1>
-      <p className="mt-1 text-gray-500">Riepilogo del patrimonio locato del gruppo.</p>
+      <p className="mt-1 text-gray-500">Riepilogo delle locazioni del gruppo.</p>
       {errore && <div className="mt-4"><Avviso tipo="errore">{errore}</Avviso></div>}
       {caricamento ? <Caricamento /> : (
         <>
@@ -79,19 +69,17 @@ export default function Dashboard() {
           </div>
           {senzaDate > 0 && <div className="mt-4"><Avviso tipo="attenzione">{senzaDate} contratti attivi non hanno decorrenza o prima scadenza compilate: le scadenze non possono essere calcolate finché non vengono inserite.</Avviso></div>}
 
-          <h2 className="mt-8 text-lg font-semibold">Rendimento annuo per società</h2>
-          <p className="mb-3 text-sm text-gray-500">Netto = affitti − spese condominiali − mutuo/leasing − imposta di registro − IMU. Rendimento = netto / valore di mercato.</p>
-          <Tabella<RigaRendimento> righe={[...righe, tot]} vuoto="Nessuna società inserita." colonne={[
-            { chiave: 's', etichetta: 'Società', render: (r) => <span className={r.id === 'tot' ? 'font-bold' : 'font-medium'}>{r.societa}</span> },
-            { chiave: 'n', etichetta: 'Immobili (locati)', allinea: 'dx', render: (r) => `${r.immobili} (${r.locati})` },
-            { chiave: 'a', etichetta: 'Affitti', allinea: 'dx', render: (r) => formattaEuro(r.affitto) },
-            { chiave: 'c', etichetta: 'Condominio', allinea: 'dx', render: (r) => formattaEuro(r.condominio) },
-            { chiave: 'm', etichetta: 'Mutuo/leasing', allinea: 'dx', render: (r) => formattaEuro(r.mutuo) },
-            { chiave: 'r', etichetta: 'Imp. registro', allinea: 'dx', render: (r) => formattaEuro(r.registro) },
-            { chiave: 'i', etichetta: 'IMU', allinea: 'dx', render: (r) => formattaEuro(r.imu) },
-            { chiave: 'v', etichetta: 'Valore di mercato', allinea: 'dx', render: (r) => formattaEuro(r.valore) },
-            { chiave: 'p', etichetta: 'Rendimento', allinea: 'dx', render: (r) => <span className={r.rendimento !== null && r.rendimento < 0 ? 'text-red-600 font-medium' : 'font-medium'}>{percentuale(r.rendimento)}</span> },
-          ]} />
+          <h2 className="mt-8 text-lg font-semibold">Riepilogo per società</h2>
+          <div className="mt-3">
+            <Tabella<RigaSocieta> righe={[...righe, tot]} vuoto="Nessuna società inserita." colonne={[
+              { chiave: 's', etichetta: 'Società', render: (r) => <span className={`font-medium ${grassetto(r)}`}>{r.societa}</span> },
+              { chiave: 'n', etichetta: 'Immobili (liberi)', allinea: 'dx', render: (r) => <span className={grassetto(r)}>{r.immobili} ({r.liberi})</span> },
+              { chiave: 'c', etichetta: 'Contratti attivi', allinea: 'dx', render: (r) => <span className={grassetto(r)}>{r.contratti}</span> },
+              { chiave: 'm', etichetta: 'Canone mensile', allinea: 'dx', render: (r) => <span className={grassetto(r)}>{formattaEuro(r.canone_mensile)}</span> },
+              { chiave: 'a', etichetta: 'Canone annuo', allinea: 'dx', render: (r) => <span className={grassetto(r)}>{formattaEuro(r.canone_annuo)}</span> },
+              { chiave: 'r', etichetta: 'Imposta di registro annua', allinea: 'dx', render: (r) => <span className={grassetto(r)}>{formattaEuro(r.registro)}</span> },
+            ]} />
+          </div>
 
           {scadenze.length > 0 && (
             <>

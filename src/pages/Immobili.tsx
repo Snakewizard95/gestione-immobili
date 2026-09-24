@@ -7,7 +7,7 @@ import { formattaEuro } from '../lib/utils/formato'
 const VUOTO: Partial<Immobile> = {
   societa_id: '', indirizzo: '', comune: '', provincia: '', tipologia: '', foglio: '', particella: '', subalterno: '', categoria: '',
   rendita_cent: null, superficie_mq: null, condominio_id: '', millesimi: null, stato: 'libero',
-  valore_mercato_cent: null, imu_annua_cent: null, mutuo_annuo_cent: null, condominio_annuo_cent: null, note: '',
+  condominio_annuo_cent: null, note: '',
 }
 
 export default function PaginaImmobili() {
@@ -33,10 +33,7 @@ export default function PaginaImmobili() {
         { nome: 'condominio_id', etichetta: 'Condominio', tipo: 'select', sezione: 'Condominio',
           opzioni: attivi(dati<Condominio>('condomini')).map((c) => ({ valore: c.id, etichetta: c.denominazione })) },
         { nome: 'millesimi', etichetta: 'Millesimi', tipo: 'percentuale' },
-        { nome: 'valore_mercato_cent', etichetta: 'Valore di mercato', tipo: 'euro', sezione: 'Dati per il rendimento (annui)' },
-        { nome: 'imu_annua_cent', etichetta: 'IMU annua', tipo: 'euro' },
-        { nome: 'mutuo_annuo_cent', etichetta: 'Mutuo / leasing annuo', tipo: 'euro' },
-        { nome: 'condominio_annuo_cent', etichetta: 'Spese condominiali annue (a carico proprietà)', tipo: 'euro' },
+        { nome: 'condominio_annuo_cent', etichetta: 'Spese condominiali annue a carico proprietà (indicativo)', tipo: 'euro' },
         { nome: 'note', etichetta: 'Note', tipo: 'textarea' },
       ]}
       colonne={(dati) => [
@@ -45,8 +42,7 @@ export default function PaginaImmobili() {
         { chiave: 'com', etichetta: 'Comune', render: (r) => r.comune || '—' },
         { chiave: 'tip', etichetta: 'Tipologia', render: (r) => etichettaDi(TIPOLOGIE_IMMOBILE, r.tipologia) },
         { chiave: 'stato', etichetta: 'Stato', render: (r) => <Etichetta tono={r.stato === 'locato' ? 'verde' : r.stato === 'libero' ? 'giallo' : 'grigio'}>{etichettaDi(STATI_IMMOBILE, r.stato)}</Etichetta> },
-        { chiave: 'val', etichetta: 'Valore di mercato', allinea: 'dx', render: (r) => formattaEuro(r.valore_mercato_cent) },
-        { chiave: 'imu', etichetta: 'IMU annua', allinea: 'dx', render: (r) => formattaEuro(r.imu_annua_cent) },
+        { chiave: 'cond', etichetta: 'Spese condominiali annue', allinea: 'dx', render: (r) => formattaEuro(r.condominio_annuo_cent) },
       ]}
     />
   )
