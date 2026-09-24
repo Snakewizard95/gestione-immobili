@@ -2,12 +2,11 @@ import PaginaAnagrafica from '../components/PaginaAnagrafica'
 import { Etichetta } from '../components/ui'
 import { attivi } from '../lib/store'
 import { STATI_IMMOBILE, TIPOLOGIE_IMMOBILE, etichettaDi, type Condominio, type Immobile, type Societa } from '../lib/tipi'
-import { formattaEuro } from '../lib/utils/formato'
 
 const VUOTO: Partial<Immobile> = {
   societa_id: '', indirizzo: '', comune: '', provincia: '', tipologia: '', foglio: '', particella: '', subalterno: '', categoria: '',
   rendita_cent: null, superficie_mq: null, condominio_id: '', millesimi: null, stato: 'libero',
-  condominio_annuo_cent: null, note: '',
+  note: '',
 }
 
 export default function PaginaImmobili() {
@@ -33,7 +32,6 @@ export default function PaginaImmobili() {
         { nome: 'condominio_id', etichetta: 'Condominio', tipo: 'select', sezione: 'Condominio',
           opzioni: attivi(dati<Condominio>('condomini')).map((c) => ({ valore: c.id, etichetta: c.denominazione })) },
         { nome: 'millesimi', etichetta: 'Millesimi', tipo: 'percentuale' },
-        { nome: 'condominio_annuo_cent', etichetta: 'Spese condominiali annue a carico proprietà (indicativo)', tipo: 'euro' },
         { nome: 'note', etichetta: 'Note', tipo: 'textarea' },
       ]}
       colonne={(dati) => [
@@ -42,7 +40,6 @@ export default function PaginaImmobili() {
         { chiave: 'com', etichetta: 'Comune', render: (r) => r.comune || '—' },
         { chiave: 'tip', etichetta: 'Tipologia', render: (r) => etichettaDi(TIPOLOGIE_IMMOBILE, r.tipologia) },
         { chiave: 'stato', etichetta: 'Stato', render: (r) => <Etichetta tono={r.stato === 'locato' ? 'verde' : r.stato === 'libero' ? 'giallo' : 'grigio'}>{etichettaDi(STATI_IMMOBILE, r.stato)}</Etichetta> },
-        { chiave: 'cond', etichetta: 'Spese condominiali annue', allinea: 'dx', render: (r) => formattaEuro(r.condominio_annuo_cent) },
       ]}
     />
   )

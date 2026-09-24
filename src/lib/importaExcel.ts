@@ -1,6 +1,6 @@
 /**
  * Importazione del foglio "Rendimenti Affitti" (formato del file di Davide).
- * Le colonne IMU, Mutuo/Leasing e Valore di Mercato vengono ignorate (scelta di Davide).
+ * Le colonne Condominio, IMU, Mutuo/Leasing e Valore di Mercato vengono ignorate (scelta di Davide).
  * Struttura: blocchi per società, ognuno con riga di intestazione
  *   Proprietà | Immobile | Conduttore | Affitto | Condominio | Mutuo/Leasing | Imposta Registro | IMU | (vuota) | Valore di Mercato | Rendimento
  * seguita da righe immobile e da una riga TOTALE. Conduttore "//" o vuoto = immobile libero.
@@ -14,7 +14,6 @@ export interface RigaImportata {
   immobile: string
   conduttore: string | null
   affitto_cent: number
-  condominio_cent: number
   imposta_registro_cent: number
 }
 
@@ -43,7 +42,7 @@ export function analizzaRendimentiAffitti(buffer: ArrayBuffer): RisultatoAnalisi
   const visti = new Map<string, number>()
 
   for (const r of righeRaw) {
-    const [prop, imm, cond, aff, condominio, , imposta] = r as unknown[]
+    const [prop, imm, cond, aff, , , imposta] = r as unknown[]
     const societa = String(prop ?? '').trim()
     const immobile = String(imm ?? '').trim().replace(/\s+/g, ' ')
     if (!societa || !immobile || societa === 'Proprietà') continue
@@ -56,7 +55,7 @@ export function analizzaRendimentiAffitti(buffer: ArrayBuffer): RisultatoAnalisi
     if (n > 1) avvisi.push(`"${immobile}" (${societa}) compare più volte: importato come "${immobileUnico}".`)
     righe.push({
       societa, immobile: immobileUnico, conduttore,
-      affitto_cent: centesimi(aff), condominio_cent: centesimi(condominio), imposta_registro_cent: centesimi(imposta),
+      affitto_cent: centesimi(aff), imposta_registro_cent: centesimi(imposta),
     })
   }
   if (righe.length === 0) avvisi.push('Nessuna riga riconosciuta: il file non sembra nel formato "Rendimenti Affitti".')
@@ -105,7 +104,7 @@ export function preparaImportazione(
         ...campiNuovo(utente), societa_id: soc.id, indirizzo: r.immobile, comune, provincia: comune === 'Milano' ? 'MI' : comune === 'Roma' ? 'RM' : '',
         tipologia: box ? 'box' : '', foglio: '', particella: '', subalterno: '', categoria: '', rendita_cent: null, superficie_mq: null,
         condominio_id: '', millesimi: null, stato: r.conduttore ? 'locato' : 'libero',
-        condominio_annuo_cent: r.condominio_cent || null, note: 'Importato da Excel',
+        note: 'Importato da Excel',
       }
       piano.immobili.push(imm)
     }

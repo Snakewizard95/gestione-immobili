@@ -64,7 +64,7 @@ export default function PaginaImporta() {
   return (
     <div>
       <h1 className="text-2xl font-semibold">Importa da Excel</h1>
-      <p className="mt-1 text-gray-500">Formato riconosciuto: foglio "Rendimenti Affitti". Vengono lette le colonne Proprietà, Immobile, Conduttore, Affitto, Condominio e Imposta Registro; le altre vengono ignorate.</p>
+      <p className="mt-1 text-gray-500">Formato riconosciuto: foglio "Rendimenti Affitti". Vengono lette le colonne Proprietà, Immobile, Conduttore, Affitto e Imposta Registro; le altre vengono ignorate.</p>
 
       <div className="mt-6 flex flex-wrap items-center gap-3 rounded-xl bg-white p-5 shadow-sm">
         <label className="cursor-pointer rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50">
@@ -99,7 +99,6 @@ export default function PaginaImporta() {
               { chiave: 'c', etichetta: 'Conduttore', render: (r) => r.conduttore ?? <span className="text-gray-400">libero</span> },
               { chiave: 'a', etichetta: 'Affitto annuo', allinea: 'dx', render: (r) => formattaEuro(r.affitto_cent) },
               { chiave: 'r', etichetta: 'Imp. registro', allinea: 'dx', render: (r) => formattaEuro(r.imposta_registro_cent) },
-              { chiave: 'k', etichetta: 'Spese condominiali', allinea: 'dx', render: (r) => formattaEuro(r.condominio_cent) },
             ]} />
           </div>
         </div>

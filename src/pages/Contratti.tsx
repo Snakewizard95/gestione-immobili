@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
+import Allegati from '../components/Allegati'
 import Modulo, { type CampoDef } from '../components/Modulo'
+import RegistroAnnuale from '../components/RegistroAnnuale'
 import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Tabella, filtraTesto } from '../components/ui'
 import { useSessioneAttiva } from '../lib/sessione'
 import { aggiorna, attivi, campiModifica, campiNuovo } from '../lib/store'
@@ -38,6 +40,7 @@ export default function PaginaContratti() {
   const [ricerca, setRicerca] = useState('')
   const [scheda, setScheda] = useState<'attivi' | 'cessati'>('attivi')
   const [aperto, setAperto] = useState<Partial<Contratto> | null>(null)
+  const [tab, setTab] = useState<'dati' | 'registro' | 'allegati'>('dati')
 
   const immobili = attivi(dati<Immobile>('immobili'))
   const conduttori = attivi(dati<Conduttore>('conduttori'))
@@ -110,7 +113,7 @@ export default function PaginaContratti() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Contratti di locazione</h1>
-        <Bottone onClick={() => setAperto({ ...VUOTO })}><span className="flex items-center gap-1"><Plus size={16} /> Nuovo contratto</span></Bottone>
+        <Bottone onClick={() => { setTab('dati'); setAperto({ ...VUOTO }) }}><span className="flex items-center gap-1"><Plus size={16} /> Nuovo contratto</span></Bottone>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <div className="flex rounded-lg border border-gray-300 bg-white p-0.5 text-sm">
@@ -126,7 +129,7 @@ export default function PaginaContratti() {
       <div className="mt-4">
         {errore && <Avviso tipo="errore">{errore}</Avviso>}
         {caricamento && !errore ? <Caricamento /> : (
-          <Tabella<Contratto> righe={righe} onRiga={(r) => setAperto(r)} vuoto="Nessun contratto in questo elenco."
+          <Tabella<Contratto> righe={righe} onRiga={(r) => { setTab('dati'); setAperto(r) }} vuoto="Nessun contratto in questo elenco."
             colonne={[
               { chiave: 'soc', etichetta: 'Società', render: (c) => societaDi(c) },
               { chiave: 'imm', etichetta: 'Immobile', render: (c) => <span className="font-medium">{immobile(c.immobile_id)?.indirizzo ?? '—'}</span> },
@@ -142,7 +145,20 @@ export default function PaginaContratti() {
         )}
       </div>
       <Finestra titolo={aperto?.id ? `Contratto — ${descrivi(aperto)}` : 'Nuovo contratto'} aperta={aperto !== null} onChiudi={() => setAperto(null)} larga>
-        {aperto && <Modulo<Contratto> campi={campi} iniziale={aperto} onSalva={salva} onAnnulla={() => setAperto(null)} onElimina={aperto.id ? elimina : undefined} derivati={derivati} />}
+        {aperto && (
+          <>
+            {aperto.id && (
+              <div className="mb-5 flex gap-1 border-b text-sm">
+                {([['dati', 'Dati del contratto'], ['registro', 'Registro annuale: ISTAT e imposta di registro'], ['allegati', 'Allegati']] as const).map(([k, t]) => (
+                  <button key={k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-3 py-2 ${tab === k ? 'font-medium' : 'border-transparent text-gray-500 hover:text-gray-800'}`} style={tab === k ? { borderColor: 'var(--colore-primario)', color: 'var(--colore-primario)' } : undefined}>{t}</button>
+                ))}
+              </div>
+            )}
+            {(tab === 'dati' || !aperto.id) && <Modulo<Contratto> campi={campi} iniziale={aperto} onSalva={salva} onAnnulla={() => setAperto(null)} onElimina={aperto.id ? elimina : undefined} derivati={derivati} />}
+            {tab === 'registro' && aperto.id && <RegistroAnnuale contratto={tutti.find((c) => c.id === aperto.id) ?? (aperto as Contratto)} descrizione={descrivi(aperto)} />}
+            {tab === 'allegati' && aperto.id && <Allegati collezione="contratti" recordId={aperto.id} descrizione={`contratto ${descrivi(aperto)}`} />}
+          </>
+        )}
       </Finestra>
     </div>
   )

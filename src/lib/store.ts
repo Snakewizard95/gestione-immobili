@@ -11,8 +11,8 @@ import { ErroreGitHub, leggiFile, scriviFile } from './github'
 
 export type NomeCollezione =
   | 'societa' | 'conduttori' | 'condomini' | 'immobili'
-  | 'contratti' | 'adeguamenti_istat'
-  | 'movimenti' | 'imposte_registro_annuali'
+  | 'contratti' | 'annualita'
+  | 'movimenti'
   | 'oneri_condominiali' | 'allegati'
 
 export interface RecordBase {

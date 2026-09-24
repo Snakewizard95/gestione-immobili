@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  Building2, Home, Users, Landmark, FileText, Euro, Receipt, FileSpreadsheet, History, Settings, LogOut, Menu, X, Briefcase,
+  Building2, Home, Users, Landmark, FileText, Euro, Receipt, FileSpreadsheet, History, Settings, LogOut, Menu, X, Briefcase, Percent,
 } from 'lucide-react'
 import { useSessione } from '../lib/sessione'
 import { giorniAllaScadenza } from '../lib/auth'
@@ -11,6 +11,7 @@ import { MODO_DEMO } from '../lib/github'
 const VOCI = [
   { a: '/', testo: 'Dashboard', Icona: Home },
   { a: '/contratti', testo: 'Contratti', Icona: FileText },
+  { a: '/registro', testo: 'ISTAT e imposta di registro', Icona: Percent },
   { a: '/canoni', testo: 'Canoni e incassi', Icona: Euro },
   { a: '/condominio', testo: 'Condominio', Icona: Receipt },
   { sep: 'Anagrafiche' },

@@ -60,8 +60,6 @@ export interface Immobile extends RecordBase {
   condominio_id: string
   millesimi: number | null
   stato: string
-  /** Spese condominiali annue a carico della proprietà (indicativo; il dettaglio è nella sezione Condominio) */
-  condominio_annuo_cent: number | null
   note: string
 }
 
@@ -112,6 +110,54 @@ export interface Contratto extends RecordBase {
   reg_imposta_cent: number | null
   reg_quota_conduttore_cent: number | null
   imposta_registro_annuale_cent: number | null
+  note: string
+}
+
+/**
+ * Registro storico annuale di un contratto: una riga per ogni annualità con
+ * aggiornamento ISTAT, imposta di registro pagata e rimborso del 50% del conduttore.
+ */
+export interface Annualita extends RecordBase {
+  contratto_id: string
+  anno: number                          // anno di riferimento dell'annualità (es. 2026)
+  data_inizio: string                   // inizio dell'annualità (anniversario della decorrenza)
+  // ISTAT
+  istat_applicato: string               // si | no
+  istat_indice_percento: number | null  // variazione ISTAT (es. 1,2)
+  istat_quota_percento: number | null   // quota applicata: 75 o 100
+  canone_precedente_cent: number | null
+  aumento_cent: number | null
+  canone_nuovo_cent: number | null
+  istat_data_lettera: string
+  aggiorna_canone: string               // si | no: aggiorna il canone nella scheda contratto
+  // Imposta di registro
+  imposta_cent: number | null
+  imposta_pagata: string                // si | no
+  imposta_data_pagamento: string
+  imposta_modalita: string              // f24_elide | rli | altro
+  // Rimborso conduttore
+  quota_conduttore_cent: number | null
+  rimborso_ricevuto: string             // si | no
+  rimborso_data: string
+  note: string
+}
+
+export const CATEGORIE_ALLEGATO: Opzione[] = [
+  { valore: 'contratto', etichetta: 'Contratto firmato' }, { valore: 'registrazione', etichetta: 'Ricevuta registrazione' },
+  { valore: 'f24', etichetta: 'F24 / ricevuta pagamento imposta' }, { valore: 'rimborso', etichetta: 'Ricevuta rimborso conduttore' },
+  { valore: 'lettera_istat', etichetta: 'Lettera aggiornamento ISTAT' }, { valore: 'bollettino', etichetta: 'Bollettino' },
+  { valore: 'bilancio_condominiale', etichetta: 'Bilancio / verbale condominiale' }, { valore: 'visura', etichetta: 'Visura' },
+  { valore: 'planimetria', etichetta: 'Planimetria' }, { valore: 'altro', etichetta: 'Altro' },
+]
+
+export interface Allegato extends RecordBase {
+  collezione: string
+  record_id: string
+  categoria: string
+  nome_file: string
+  percorso: string
+  dimensione_byte: number
+  tipo_mime: string
   note: string
 }
 

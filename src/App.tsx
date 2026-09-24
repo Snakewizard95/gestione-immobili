@@ -12,6 +12,7 @@ import PaginaCondomini from './pages/Condomini'
 import PaginaContratti from './pages/Contratti'
 import PaginaImporta from './pages/Importa'
 import PaginaStorico from './pages/Storico'
+import PaginaRegistro from './pages/Registro'
 
 /** Mostra le pagine interne solo se l'utente ha effettuato l'accesso. */
 function AreaProtetta() {
@@ -26,6 +27,7 @@ function AreaProtetta() {
         <Route path="/conduttori" element={<PaginaConduttori />} />
         <Route path="/condomini" element={<PaginaCondomini />} />
         <Route path="/contratti" element={<PaginaContratti />} />
+        <Route path="/registro" element={<PaginaRegistro />} />
         <Route path="/canoni" element={<Segnaposto titolo="Canoni e incassi" fase={4} />} />
         <Route path="/condominio" element={<Segnaposto titolo="Oneri condominiali" fase={5} />} />
         <Route path="/importa" element={<PaginaImporta />} />
