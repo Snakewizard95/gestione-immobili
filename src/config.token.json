@@ -1,0 +1,10 @@
+{
+  "versione": 1,
+  "algoritmo": "AES-GCM-256 / PBKDF2-SHA256",
+  "iterazioni": 310000,
+  "sale": "",
+  "iv": "",
+  "dati": "",
+  "scadenza_token": null,
+  "nota": "File vuoto: eseguire `npm run cifra-token` per generarlo."
+}

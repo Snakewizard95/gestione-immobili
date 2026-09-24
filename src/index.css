@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+/* Colori provvisori: verranno sostituiti nella Fase 6 (design + logo) */
+:root {
+  --colore-primario: #1e3a5f;
+  --colore-primario-chiaro: #2c5282;
+  --colore-sfondo: #f5f7fa;
+}
+
+body {
+  background: var(--colore-sfondo);
+  color: #1a202c;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
