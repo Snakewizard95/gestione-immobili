@@ -3,6 +3,22 @@
   "algoritmo": "AES-GCM-256 / PBKDF2-SHA256",
   "iterazioni": 310000,
   "scadenza_token": null,
-  "utenti": {},
-  "nota": "Vuoto: eseguire `npm run cifra-token` per cifrare il token con la password di ogni utente."
+  "utenti": {
+    "davide": {
+      "sale": "SiV2alykR+L+mYSCIY2SYQ==",
+      "iv": "U0voEIcVdKnl4/v3",
+      "dati": "Fp5Lf0OfwWhOx5Xxi9nWj8vPi/pp+X24gYtJ5Gy87tT0hCW57HzbvljkUDDIf+WyKZ2+1MjdzivDCoitOjT8sAx//PflOlqA0Uhovo2SQsHeF95XHXUG9roIGVSYqduHVddINGKC2uSXuWR8nQ=="
+    },
+    "emanuela": {
+      "sale": "3zDy6MakXC4m1D8oGOFrPA==",
+      "iv": "fu3kFNYd4RHehxxA",
+      "dati": "q24BIHYbu7vPXGogkak2VI4Ew25JNZJvQgBsg8ucVKj8zkDI17tZmFyPhHdcXMMRrxEgS/TwkI8lRPGyjnTObTty3tOWe9claUxPTbWbAfTnq3Xj7qw3/ggkPj4y+2yLBYH+IiY4bh3/VyW3Ag=="
+    },
+    "veronica": {
+      "sale": "prbxJaqsdCdsMUh5wp1C6A==",
+      "iv": "Fm/4iMjBW0ypxH7U",
+      "dati": "RfjaVglwah++p4Nd/Nb7Ymd0ylVeOZuGmjhpfAgW2aXhFxjm8+VBy+SX+4kOVdezcI/eumOMDHa2dKiLwphn/VHV0yC7O+ww7hbudpUnLVrJJ3zmh1COGUAsI3gE4v2pkFu2+fccGtwratMX7w=="
+    }
+  },
+  "nota": "Token GitHub cifrato con la password di ciascun utente. Senza la password è illeggibile."
 }
