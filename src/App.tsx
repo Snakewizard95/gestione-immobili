@@ -4,7 +4,6 @@ import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Impostazioni from './pages/Impostazioni'
-import Segnaposto from './pages/Segnaposto'
 import PaginaSocieta from './pages/Societa'
 import PaginaImmobili from './pages/Immobili'
 import PaginaConduttori from './pages/Conduttori'
@@ -13,6 +12,8 @@ import PaginaContratti from './pages/Contratti'
 import PaginaImporta from './pages/Importa'
 import PaginaStorico from './pages/Storico'
 import PaginaRegistro from './pages/Registro'
+import PaginaCanoni from './pages/Canoni'
+import PaginaCondominio from './pages/Condominio'
 
 /** Mostra le pagine interne solo se l'utente ha effettuato l'accesso. */
 function AreaProtetta() {
@@ -28,8 +29,8 @@ function AreaProtetta() {
         <Route path="/condomini" element={<PaginaCondomini />} />
         <Route path="/contratti" element={<PaginaContratti />} />
         <Route path="/registro" element={<PaginaRegistro />} />
-        <Route path="/canoni" element={<Segnaposto titolo="Canoni e incassi" fase={4} />} />
-        <Route path="/condominio" element={<Segnaposto titolo="Oneri condominiali" fase={5} />} />
+        <Route path="/canoni" element={<PaginaCanoni />} />
+        <Route path="/condominio" element={<PaginaCondominio />} />
         <Route path="/importa" element={<PaginaImporta />} />
         <Route path="/storico" element={<PaginaStorico />} />
         <Route path="/impostazioni" element={<Impostazioni />} />

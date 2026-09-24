@@ -177,3 +177,73 @@ export function statoIva(c: Pick<Contratto, 'regime_iva' | 'iva_percento'> | nul
 export function etichettaDi(opzioni: Opzione[], valore: string | null | undefined): string {
   return opzioni.find((o) => o.valore === valore)?.etichetta ?? (valore || '—')
 }
+
+/* ============================ Canoni e incassi ============================ */
+
+export const TIPI_MOVIMENTO: Opzione[] = [
+  { valore: 'canone', etichetta: 'Canone di locazione' },
+  { valore: 'rimborso_condominio', etichetta: 'Rimborso spese condominiali' },
+  { valore: 'rimborso_registro', etichetta: 'Rimborso imposta di registro (50%)' },
+  { valore: 'rimborso_altro', etichetta: 'Rimborso altre spese' },
+  { valore: 'deposito', etichetta: 'Deposito cauzionale' },
+  { valore: 'altro', etichetta: 'Altro' },
+]
+export const STATI_MOVIMENTO: Opzione[] = [
+  { valore: 'da_incassare', etichetta: 'Da incassare' }, { valore: 'parziale', etichetta: 'Incassato in parte' },
+  { valore: 'incassato', etichetta: 'Incassato' }, { valore: 'stornato', etichetta: 'Stornato / non dovuto' },
+]
+export const MODALITA_INCASSO: Opzione[] = [
+  { valore: 'bonifico', etichetta: 'Bonifico' }, { valore: 'contanti', etichetta: 'Contanti' }, { valore: 'assegno', etichetta: 'Assegno' },
+  { valore: 'rid', etichetta: 'Addebito diretto (RID/SDD)' }, { valore: 'compensazione', etichetta: 'Compensazione' }, { valore: 'altro', etichetta: 'Altro' },
+]
+
+/** Un movimento = una somma dovuta dal conduttore (canone di un mese, rimborso…) con il suo incasso e la fattura. */
+export interface Movimento extends RecordBase {
+  contratto_id: string
+  tipo: string                 // TIPI_MOVIMENTO
+  competenza: string           // mese di competenza "AAAA-MM" (per i canoni) o data "AAAA-MM-GG"
+  descrizione: string
+  imponibile_cent: number | null
+  iva_percento: number | null  // copiata dal contratto al momento della creazione, modificabile
+  iva_cent: number | null
+  dovuto_cent: number | null   // imponibile + IVA
+  incassato_cent: number | null
+  data_incasso: string
+  modalita: string
+  numero_fattura: string
+  data_fattura: string
+  stato: string                // STATI_MOVIMENTO
+  note: string
+}
+
+/* ============================ Condominio ============================ */
+
+export const TIPI_VOCE_CONDOMINIO: Opzione[] = [
+  { valore: 'rata_ordinaria', etichetta: 'Rata gestione ordinaria (preventivo)' },
+  { valore: 'conguaglio', etichetta: 'Conguaglio consuntivo' },
+  { valore: 'straordinaria', etichetta: 'Rata lavori straordinari' },
+  { valore: 'fondo', etichetta: 'Fondo / accantonamento' },
+  { valore: 'altro', etichetta: 'Altro' },
+]
+export const A_CARICO: Opzione[] = [
+  { valore: 'proprieta', etichetta: 'Proprietà' }, { valore: 'conduttore', etichetta: 'Conduttore (riaddebitabile)' }, { valore: 'misto', etichetta: 'Misto (indicare la quota conduttore)' },
+]
+
+/** Una voce condominiale = un bollettino / rata / conguaglio comunicato dall'amministratore per un immobile. */
+export interface VoceCondominiale extends RecordBase {
+  immobile_id: string
+  condominio_id: string
+  esercizio: string            // es. "2026" o "2025/2026"
+  tipo: string                 // TIPI_VOCE_CONDOMINIO
+  descrizione: string          // es. "2ª rata preventivo 2026"
+  data_comunicazione: string   // data del verbale / lettera dell'amministratore
+  scadenza: string
+  importo_cent: number | null
+  a_carico: string             // A_CARICO
+  quota_conduttore_cent: number | null
+  pagata: string               // si | no
+  data_pagamento: string
+  riaddebitata: string         // si | no: quota conduttore richiesta/incassata
+  data_riaddebito: string
+  note: string
+}
