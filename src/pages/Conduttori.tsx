@@ -9,6 +9,7 @@ export default function PaginaConduttori() {
     <PaginaAnagrafica<Conduttore>
       titolo="Conduttori (inquilini)" singolare="conduttore" collezione="conduttori" vuotoNuovo={VUOTO}
       descrivi={(r) => r.denominazione ?? ''}
+      sottotitolo={(tutti) => `${tutti.length} ${tutti.length === 1 ? 'conduttore' : 'conduttori'} (persone e società)`}
       campi={() => [
         { nome: 'denominazione', etichetta: 'Nome / ragione sociale', tipo: 'testo', obbligatorio: true },
         { nome: 'tipo', etichetta: 'Tipo', tipo: 'select', opzioni: [{ valore: 'societa', etichetta: 'Società' }, { valore: 'persona', etichetta: 'Persona fisica' }] },

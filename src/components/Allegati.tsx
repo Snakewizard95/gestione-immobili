@@ -4,7 +4,7 @@
  * dimostrativa restano nel browser (con limite di dimensione ridotto).
  */
 import { useRef, useState } from 'react'
-import { Download, Paperclip, Trash2 } from 'lucide-react'
+import { FileText, Paperclip, Trash2, Upload } from 'lucide-react'
 import { CONFIG } from '../config'
 import { MODO_DEMO, caricaAllegato, eliminaFile, scaricaAllegato } from '../lib/github'
 import { useSessioneAttiva } from '../lib/sessione'
@@ -12,7 +12,7 @@ import { aggiorna, attivi, campiModifica, campiNuovo, type NomeCollezione } from
 import { CATEGORIE_ALLEGATO, etichettaDi, type Allegato, type Opzione } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaByte, formattaData } from '../lib/utils/formato'
-import { Avviso, Etichetta } from './ui'
+import { Avviso, Bottone, Riquadro } from './ui'
 import { useSoloLettura } from './SoloLettura'
 
 const LIMITE_DEMO = 2 * 1024 * 1024
@@ -22,14 +22,14 @@ interface Props {
   recordId: string
   categorie?: Opzione[]
   descrizione: string   // per il messaggio di salvataggio, es. "contratto Via Roma 12"
-  compatto?: boolean
+  compatto?: boolean   // non più usato: aspetto unico in tutte le sezioni
 }
 
 function nomeSicuro(nome: string): string {
   return nome.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 80)
 }
 
-export default function Allegati({ collezione, recordId, categorie = CATEGORIE_ALLEGATO, descrizione, compatto }: Props) {
+export default function Allegati({ collezione, recordId, categorie = CATEGORIE_ALLEGATO, descrizione }: Props) {
   const { token, nome } = useSessioneAttiva()
   const { dati } = useCollezioni(['allegati'])
   const [categoria, setCategoria] = useState(categorie[0]?.valore ?? 'altro')
@@ -37,6 +37,7 @@ export default function Allegati({ collezione, recordId, categorie = CATEGORIE_A
   const [inCorso, setInCorso] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const soloLettura = useSoloLettura()
+  const [sopra, setSopra] = useState(false)
 
   const elenco = attivi(dati<Allegato>('allegati')).filter((a) => a.collezione === collezione && a.record_id === recordId)
     .sort((a, b) => b.creato_il.localeCompare(a.creato_il))
@@ -83,36 +84,46 @@ export default function Allegati({ collezione, recordId, categorie = CATEGORIE_A
   }
 
   return (
-    <div className={compatto ? '' : 'rounded-xl border bg-gray-50 p-4'}>
-      <div className="flex flex-wrap items-center gap-2">
-        <Paperclip size={16} className="text-gray-500" />
-        <span className="text-sm font-medium">Allegati ({elenco.length})</span>
-        {!soloLettura && <>
-        <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="ml-auto rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm">
-          {categorie.map((c) => <option key={c.valore} value={c.valore}>{c.etichetta}</option>)}
-        </select>
-        <label className="cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-100">
-          {inCorso ?? 'Carica file…'}
-          <input ref={inputRef} type="file" className="hidden" disabled={!!inCorso} onChange={(e) => carica(e.target.files?.[0])} accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx,.p7m" />
-        </label>
-        </>}
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Paperclip size={16} className="text-neutro-600" />
+        <h6 className="m-0 text-accento-700">Allegati ({elenco.length})</h6>
       </div>
-      {errore && <div className="mt-2"><Avviso tipo="attenzione">{errore}</Avviso></div>}
+      {errore && <div className="mb-3"><Avviso tipo="attenzione">{errore}</Avviso></div>}
       {elenco.length > 0 && (
-        <ul className="mt-3 divide-y rounded-lg border bg-white text-sm">
-          {elenco.map((a) => (
-            <li key={a.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-              <Etichetta tono="blu">{etichettaDi(categorie, a.categoria)}</Etichetta>
-              <button onClick={() => apri(a)} className="font-medium text-left hover:underline">{a.nome_file}</button>
-              <span className="text-gray-400">{formattaByte(a.dimensione_byte)} · {formattaData(a.creato_il)} · {a.creato_da}</span>
-              <span className="ml-auto flex gap-1">
-                <button onClick={() => apri(a)} title="Apri / scarica" className="rounded p-1 text-gray-500 hover:bg-gray-100"><Download size={16} /></button>
-                {!soloLettura && <button onClick={() => elimina(a)} title="Elimina" className="rounded p-1 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 size={16} /></button>}
-              </span>
-            </li>
+        <Riquadro className="mb-3">
+          {elenco.map((a, i) => (
+            <div key={a.id} className={`flex items-center gap-3 px-3.5 py-2.5 ${i < elenco.length - 1 ? 'border-b border-divisore' : ''}`}>
+              <FileText size={18} className="flex-none text-accento-700" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium">{a.nome_file}</div>
+                <div className="text-xs text-neutro-700">{etichettaDi(categorie, a.categoria)} · {formattaByte(a.dimensione_byte)} · {formattaData(a.creato_il)} · {a.creato_da}</div>
+              </div>
+              <Bottone variante="ghost" piccolo onClick={() => apri(a)}>Apri</Bottone>
+              {!soloLettura && <button onClick={() => elimina(a)} title="Elimina" aria-label={`Elimina ${a.nome_file}`} className="btn btn-ghost btn-piccolo !text-neutro-700 hover:!text-err-testo"><Trash2 size={15} /></button>}
+            </div>
           ))}
-        </ul>
+        </Riquadro>
       )}
+      {!soloLettura && (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setSopra(true) }}
+          onDragLeave={() => setSopra(false)}
+          onDrop={(e) => { e.preventDefault(); setSopra(false); if (!inCorso) carica(e.dataTransfer.files?.[0]) }}
+          className={`flex flex-wrap items-center gap-3 border border-dashed px-4 py-4 text-[13px] ${sopra ? 'border-accento bg-[rgba(89,128,166,0.08)]' : 'border-neutro-400'}`}>
+          <Upload size={18} className="flex-none text-accento-700" />
+          <span className="min-w-0 flex-1 text-neutro-700">
+            {inCorso ?? <>Trascina qui il documento, oppure <button type="button" className="text-accento-700 underline" onClick={() => inputRef.current?.click()}>scegli un file</button>.</>}
+          </span>
+          <label className="flex items-center gap-2 text-xs text-neutro-700">Tipo
+            <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="input w-auto !min-h-[30px] !py-1 text-[13px]">
+              {categorie.map((c) => <option key={c.valore} value={c.valore}>{c.etichetta}</option>)}
+            </select>
+          </label>
+          <input ref={inputRef} type="file" className="hidden" disabled={!!inCorso} onChange={(e) => carica(e.target.files?.[0])} accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx,.p7m" />
+        </div>
+      )}
+      {soloLettura && elenco.length === 0 && <p className="text-[13px] text-neutro-700">Nessun documento allegato.</p>}
     </div>
   )
 }

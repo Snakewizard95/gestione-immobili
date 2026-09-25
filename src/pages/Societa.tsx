@@ -9,6 +9,7 @@ export default function PaginaSocieta() {
     <PaginaAnagrafica<Societa>
       titolo="Società del gruppo (locatori)" singolare="società" genere="f" collezione="societa" vuotoNuovo={VUOTO}
       descrivi={(r) => r.ragione_sociale ?? ''}
+      sottotitolo={(tutti) => `${tutti.length} ${tutti.length === 1 ? 'proprietario' : 'proprietari'} degli immobili del gruppo`}
       extraExcel={(r) => ({ 'Tipo': r.tipo === 'persona' ? 'Persona fisica' : 'Società' })}
       campi={() => [
         { nome: 'ragione_sociale', etichetta: 'Ragione sociale / nome', tipo: 'testo', obbligatorio: true },

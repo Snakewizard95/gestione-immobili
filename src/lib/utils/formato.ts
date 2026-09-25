@@ -1,6 +1,7 @@
 /** Formattazione italiana di importi (in centesimi) e date (ISO). */
 
-const euro = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' })
+// useGrouping 'always': separatore delle migliaia anche sui numeri di 4 cifre ("1.350,00 €" e non "1350,00 €")
+const euro = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', useGrouping: 'always' } as Intl.NumberFormatOptions)
 
 /** 1234567 → "12.345,67 €" */
 export function formattaEuro(centesimi: number | null | undefined): string {

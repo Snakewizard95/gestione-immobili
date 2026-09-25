@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Avviso, Bottone, Tabella } from '../components/ui'
+import { FileSpreadsheet, Upload } from 'lucide-react'
+import { Avviso, Bottone, IntestazionePagina, Tabella, TavolaKpi } from '../components/ui'
 import { useSoloLettura } from '../components/SoloLettura'
 import { MODO_DEMO } from '../lib/github'
 import { analizzaRendimentiAffitti, preparaImportazione, type PianoImportazione, type RigaImportata } from '../lib/importaExcel'
@@ -21,6 +22,7 @@ export default function PaginaImporta() {
   const [esito, setEsito] = useState<string | null>(null)
   const [inCorso, setInCorso] = useState(false)
   const [fileLocale, setFileLocale] = useState(false)
+  const [nomeFile, setNomeFile] = useState<string | null>(null)
   const soloLettura = useSoloLettura()
 
   useEffect(() => {
@@ -40,10 +42,11 @@ export default function PaginaImporta() {
     } catch (e) { setErrore('Impossibile leggere il file: ' + (e as Error).message) }
   }
 
-  async function daFile(f: File | undefined) { if (f) analizza(await f.arrayBuffer()) }
+  async function daFile(f: File | undefined) { if (f) { setNomeFile(f.name); analizza(await f.arrayBuffer()) } }
   async function daLocale() {
     const r = await fetch(FILE_LOCALE)
     if (!r.ok) { setErrore('File di esempio non trovato nella cartella dati-excel.'); return }
+    setNomeFile('affitti aggiornati.xlsx')
     analizza(await r.arrayBuffer())
   }
 
@@ -65,41 +68,48 @@ export default function PaginaImporta() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold">Importa da Excel</h1>
-      <p className="mt-1 text-gray-500">Formato riconosciuto: foglio "Rendimenti Affitti". Vengono lette le colonne Proprietà, Immobile, Conduttore, Affitto e Imposta Registro; le altre vengono ignorate.</p>
+      <IntestazionePagina kicker="Strumenti" titolo="Importa da Excel"
+        sottotitolo={'Formato riconosciuto: foglio "Rendimenti Affitti". Vengono lette le colonne Proprietà, Immobile, Conduttore, Affitto e Imposta Registro; le altre vengono ignorate.'} />
 
-      {soloLettura && <div className="mt-4"><Avviso tipo="info">Hai accesso in sola lettura: l'importazione è riservata a chi può modificare i dati.</Avviso></div>}
-      <div className="mt-6 flex flex-wrap items-center gap-3 rounded-xl bg-white p-5 shadow-sm">
-        <label className="cursor-pointer rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50">
-          Scegli file Excel…
+      {soloLettura && <div className="mb-5"><Avviso tipo="info">Hai accesso in sola lettura: l'importazione è riservata a chi può modificare i dati.</Avviso></div>}
+      <div className="blueprint flex flex-wrap items-center gap-4 !border-dashed p-7">
+        <i className="corner tl" /><i className="corner tr" /><i className="corner bl" /><i className="corner br" />
+        <FileSpreadsheet size={32} className="flex-none text-accento-700" />
+        <div className="min-w-0 flex-1">
+          <div className="font-medium">{nomeFile ?? 'Nessun file selezionato'}</div>
+          <div className="text-[13px] text-neutro-700">{righe ? `${righe.length} righe lette dal foglio "Rendimenti Affitti"` : 'Scegli il file Excel con il foglio "Rendimenti Affitti" (.xlsx o .xls).'}</div>
+        </div>
+        {fileLocale && MODO_DEMO && <Bottone variante="ghost" onClick={daLocale} disabled={caricamento}>Carica "affitti aggiornati.xlsx" dalla cartella del progetto</Bottone>}
+        <label className={`btn btn-secondario ${caricamento || soloLettura ? 'pointer-events-none opacity-45' : ''}`}>
+          <Upload size={16} /> Scegli file Excel…
           <input type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => daFile(e.target.files?.[0])} disabled={caricamento || soloLettura} />
         </label>
-        {fileLocale && MODO_DEMO && <Bottone variante="secondario" onClick={daLocale} disabled={caricamento}>Carica "affitti aggiornati.xlsx" dalla cartella del progetto</Bottone>}
       </div>
 
-      {errore && <div className="mt-4"><Avviso tipo="errore">{errore}</Avviso></div>}
-      {esito && <div className="mt-4"><Avviso tipo="ok">{esito}</Avviso></div>}
-      {avvisi.length > 0 && <div className="mt-4"><Avviso tipo="attenzione"><ul className="list-disc pl-5">{avvisi.map((a, i) => <li key={i}>{a}</li>)}</ul></Avviso></div>}
+      {errore && <div className="mt-5"><Avviso tipo="errore">{errore}</Avviso></div>}
+      {esito && <div className="mt-5"><Avviso tipo="ok">{esito}</Avviso></div>}
+      {avvisi.length > 0 && <div className="mt-5"><Avviso tipo="attenzione"><ul className="list-disc pl-5">{avvisi.map((a, i) => <li key={i}>{a}</li>)}</ul></Avviso></div>}
 
       {righe && piano && (
-        <div className="mt-6">
-          <div className="grid gap-3 sm:grid-cols-4">
-            {[['Società nuove', piano.societa.length], ['Immobili nuovi', piano.immobili.length], ['Conduttori nuovi', piano.conduttori.length], ['Contratti nuovi', piano.contratti.length]].map(([t, n]) => (
-              <div key={t as string} className="rounded-xl bg-white p-4 shadow-sm"><div className="text-sm text-gray-500">{t}</div><div className="text-2xl font-semibold">{n}</div></div>
-            ))}
-          </div>
-          {piano.saltati.length > 0 && <div className="mt-3"><Avviso tipo="info">{piano.saltati.length} elementi già presenti verranno saltati.</Avviso></div>}
-          <div className="mt-4 flex items-center justify-between">
-            <span className="text-sm text-gray-500">{righe.length} righe lette · affitti annui {formattaEuro(totale('affitto_cent'))} · imposta di registro {formattaEuro(totale('imposta_registro_cent'))}</span>
+        <div className="mt-8">
+          <TavolaKpi celle={[
+            { titolo: 'Società', valore: piano.societa.length, nota: 'nuove' },
+            { titolo: 'Immobili', valore: piano.immobili.length, nota: 'nuovi' },
+            { titolo: 'Conduttori', valore: piano.conduttori.length, nota: 'nuovi' },
+            { titolo: 'Contratti nuovi', valore: piano.contratti.length },
+          ]} />
+          {piano.saltati.length > 0 && <div className="-mt-3"><Avviso tipo="info">{piano.saltati.length} elementi già presenti verranno saltati.</Avviso></div>}
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+            <span className="text-[13px] text-neutro-700">{righe.length} righe lette · affitti annui {formattaEuro(totale('affitto_cent'))} · imposta di registro {formattaEuro(totale('imposta_registro_cent'))}</span>
             <Bottone onClick={importa} disabled={inCorso || (piano.societa.length + piano.immobili.length + piano.conduttori.length + piano.contratti.length === 0)}>
               {inCorso ? 'Importazione…' : 'Conferma importazione'}
             </Bottone>
           </div>
-          <div className="mt-3">
+          <div className="mt-4">
             <Tabella righe={righe.map((r, i) => ({ ...r, id: String(i) }))} colonne={[
               { chiave: 's', etichetta: 'Società', render: (r) => r.societa },
               { chiave: 'i', etichetta: 'Immobile', render: (r) => r.immobile },
-              { chiave: 'c', etichetta: 'Conduttore', render: (r) => r.conduttore ?? <span className="text-gray-400">libero</span> },
+              { chiave: 'c', etichetta: 'Conduttore', render: (r) => r.conduttore ?? <span className="text-neutro-500">libero</span> },
               { chiave: 'a', etichetta: 'Affitto annuo', allinea: 'dx', render: (r) => formattaEuro(r.affitto_cent) },
               { chiave: 'r', etichetta: 'Imp. registro', allinea: 'dx', render: (r) => formattaEuro(r.imposta_registro_cent) },
             ]} />

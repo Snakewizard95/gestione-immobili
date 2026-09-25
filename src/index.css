@@ -1,16 +1,207 @@
 @import "tailwindcss";
 
-/* Colori provvisori: verranno sostituiti nella Fase 6 (design + logo) */
-:root {
-  --colore-primario: #1e3a5f;
-  --colore-primario-chiaro: #2c5282;
-  --colore-sfondo: #f5f7fa;
+/*
+ * Sistema grafico "Industry" (Fase 6, design di Claude Design).
+ * ATTENZIONE compatibilità Chrome 109 / Windows 7: qui si usano SOLO colori hex o rgba già calcolati.
+ * Vietati color-mix() e oklch() e le opacità Tailwind tipo "bg-white/15": su Chrome 109 verrebbero ignorati.
+ * I caratteri Barlow e Barlow Condensed sono caricati da Google Fonts in index.html.
+ */
+
+/* Colori e caratteri disponibili anche come classi Tailwind (es. bg-accento, text-neutro-700, border-divisore) */
+@theme {
+  --font-sans: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-titolo: "Barlow Condensed", "Barlow", system-ui, sans-serif;
+  --font-mono: ui-monospace, Consolas, monospace;
+
+  --color-sfondo: #f2f2f3;
+  --color-superficie: #e9e9ea;
+  --color-testo: #1d1f20;
+  --color-divisore: rgba(29, 31, 32, 0.16);
+  --color-riga: rgba(29, 31, 32, 0.08);
+  --color-attenuato: rgba(29, 31, 32, 0.6);
+
+  --color-accento: #5980a6;
+  --color-accento-100: #eef6ff;
+  --color-accento-600: #597ea3;
+  --color-accento-700: #416180;
+  --color-accento-800: #2c455d;
+  --color-accento-900: #1d2d3d;
+
+  --color-neutro-200: #e7e7ea;
+  --color-neutro-300: #d4d4d7;
+  --color-neutro-400: #b7b7ba;
+  --color-neutro-500: #98989b;
+  --color-neutro-600: #7a7a7d;
+  --color-neutro-700: #5d5d60;
+  --color-neutro-800: #424244;
+
+  /* Colori di stato (verde / giallo / rosso), richiesti esplicitamente da Davide */
+  --color-ok-fondo: #dcefe0;
+  --color-ok-testo: #1f5a32;
+  --color-ok-bordo: #b7dcc0;
+  --color-att-fondo: #fbeccb;
+  --color-att-testo: #6e4b0c;
+  --color-att-bordo: #ecc978;
+  --color-err-fondo: #f6d5d2;
+  --color-err-testo: #8a2b22;
+  --color-err-bordo: #e3a49c;
 }
 
-body {
-  background: var(--colore-sfondo);
-  color: #1a202c;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+@layer base {
+  body {
+    background: #f2f2f3;
+    color: #1d1f20;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-titolo);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+  }
+  h1 { font-size: 42px; }
+  h2 { font-size: 32px; }
+  h3 { font-size: 25px; }
+  h4 { font-size: 20px; }
+  h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+  a { color: #416180; text-underline-offset: 3px; }
+  a:hover { color: #1d2d3d; }
+  :focus { outline: none; }
+  :focus-visible { outline: 2px solid #5980a6; outline-offset: 2px; }
+  ::selection { background: rgba(89, 128, 166, 0.3); }
+  /* Icone lucide: tratto sottile ovunque */
+  svg.lucide { stroke-width: 1.5; }
+}
+
+@layer components {
+  /* ── Riquadro "blueprint": bordo sottile e quattro crocette sugli angoli ── */
+  .blueprint { position: relative; border: 1px solid rgba(29, 31, 32, 0.16); }
+  .con-crocette { position: relative; }
+  .blueprint > .corner, .con-crocette > .corner {
+    position: absolute; width: 11px; height: 11px; color: rgba(29, 31, 32, 0.55); pointer-events: none;
+  }
+  .crocette-chiare > .corner { color: rgba(242, 242, 243, 0.6); }
+  .blueprint > .corner::before, .blueprint > .corner::after,
+  .con-crocette > .corner::before, .con-crocette > .corner::after { content: ""; position: absolute; background: currentColor; }
+  .blueprint > .corner::before, .con-crocette > .corner::before { left: 5px; top: 0; width: 1px; height: 100%; }
+  .blueprint > .corner::after, .con-crocette > .corner::after { top: 5px; left: 0; width: 100%; height: 1px; }
+  .corner.tl { top: -6px; left: -6px; }
+  .corner.tr { top: -6px; right: -6px; }
+  .corner.bl { bottom: -6px; left: -6px; }
+  .corner.br { bottom: -6px; right: -6px; }
+
+  /* ── Testi ── */
+  .kicker { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #416180; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ── Pulsanti ── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    min-height: 38px; padding: 6.8px 12px; cursor: pointer; white-space: nowrap;
+    font-family: var(--font-titolo); font-weight: 600; font-size: 14px; line-height: 1.2;
+    color: #1d1f20; background: transparent; border: 1px solid rgba(29, 31, 32, 0.16);
+    transition: background-color 120ms, color 120ms;
+  }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primario { background: #5980a6; color: #f2f2f3; border-color: #5980a6; }
+  .btn-primario:not(:disabled):hover { background: #597ea3; }
+  .btn-primario:not(:disabled):active { background: #416180; }
+  .btn-secondario:not(:disabled):hover { background: rgba(29, 31, 32, 0.07); }
+  .btn-secondario:not(:disabled):active { background: rgba(29, 31, 32, 0.14); }
+  .btn-pericolo { color: #1d2d3d; border-color: #2c455d; }
+  .btn-pericolo:not(:disabled):hover { background: rgba(29, 31, 32, 0.07); }
+  .btn-ghost { color: #416180; border-color: transparent; }
+  .btn-ghost:not(:disabled):hover { background: rgba(89, 128, 166, 0.1); }
+  .btn-ghost:not(:disabled):active { background: rgba(89, 128, 166, 0.18); }
+  .btn-piccolo { min-height: 30px; padding: 3px 9px; font-size: 13px; }
+  .btn-icona { width: 36px; min-height: 36px; height: 36px; padding: 0; }
+
+  /* ── Campi ── */
+  .input {
+    width: 100%; min-height: 36px; padding: 6px 10px; font: inherit; font-size: 14px;
+    color: #1d1f20; caret-color: #5980a6; background: #e9e9ea;
+    border: 1px solid rgba(29, 31, 32, 0.16); border-radius: 0;
+  }
+  .input:hover:not(:disabled) { border-color: rgba(29, 31, 32, 0.45); }
+  .input:focus-visible { border-color: #5980a6; outline-offset: 0; }
+  .input:disabled { color: #5d5d60; cursor: default; }
+  textarea.input { min-height: 90px; resize: vertical; }
+  .etichetta-campo { display: block; font-size: 12px; margin-bottom: 5px; color: rgba(29, 31, 32, 0.7); }
+
+  /* Pallino radio */
+  .radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+  .radio input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+  .radio .dot { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 1.5px solid rgba(29, 31, 32, 0.16); }
+  .radio:hover .dot { border-color: #5980a6; }
+  .radio input:checked + .dot { border-color: #5980a6; background: #5980a6; box-shadow: inset 0 0 0 4px #f2f2f3; }
+  .radio input:focus-visible + .dot { outline: 2px solid #5980a6; outline-offset: 2px; }
+
+  /* ── Controllo segmentato (filtri e schede) ── */
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid rgba(29, 31, 32, 0.16); }
+  .seg-opt {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 7px 12px; font-size: 13px; cursor: pointer; background: transparent; color: #1d1f20;
+  }
+  .seg-opt + .seg-opt { border-left: 1px solid rgba(29, 31, 32, 0.16); }
+  .seg-opt.attiva { background: #5980a6; color: #f2f2f3; }
+  .seg-opt:not(.attiva):not(:disabled):hover { background: rgba(29, 31, 32, 0.07); }
+  .seg-opt:disabled { cursor: default; }
+  .seg-opt:focus-visible { outline-offset: -2px; }
+
+  /* ── Etichette (tag) ── */
+  .tag { display: inline-flex; align-items: center; font-size: 11px; letter-spacing: 0.02em; padding: 3px 10px; white-space: nowrap; line-height: 1.45; }
+  .tag-verde { background: #dcefe0; color: #1f5a32; }
+  .tag-giallo { background: #fbeccb; color: #6e4b0c; }
+  .tag-rosso { background: #f6d5d2; color: #8a2b22; }
+  .tag-grigio { background: #e7e7ea; color: #424244; }
+  .tag-blu { background: #eef6ff; color: #2c455d; }
+
+  /* ── Tabelle ── */
+  .tabella { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .tabella th {
+    text-align: left; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+    color: rgba(29, 31, 32, 0.6); padding: 10px 14px; border-bottom: 1px solid rgba(29, 31, 32, 0.16);
+  }
+  .tabella td { padding: 12px 14px; border-bottom: 1px solid rgba(29, 31, 32, 0.08); vertical-align: middle; }
+  .tabella tbody tr:last-child td { border-bottom: 0; }
+  .tabella tr.cliccabile { cursor: pointer; }
+  .tabella tr.cliccabile:hover { background: rgba(29, 31, 32, 0.04); }
+  .tabella tr.totale td { border-top: 1px solid #1d1f20; font-weight: 700; }
+
+  /* ── Ombre ── */
+  .ombra-sm { box-shadow: 0 1px 2px rgba(43, 43, 45, 0.14); }
+  .ombra-md { box-shadow: 0 3px 10px rgba(43, 43, 45, 0.16); }
+  .ombra-lg { box-shadow: 0 12px 32px rgba(43, 43, 45, 0.22); }
+
+  /* ── Celle della griglia canoni ── */
+  .cella-mese { width: 100%; min-width: 52px; height: 34px; padding: 0 2px; font-size: 11px; font-variant-numeric: tabular-nums; border: 1px solid transparent; }
+  .cella-mese:disabled { cursor: default; }
+  .cella-ok { background: #dcefe0; color: #1f5a32; border-color: #b7dcc0; }
+  .cella-parziale { background: #fbeccb; color: #6e4b0c; border-color: #ecc978; font-weight: 500; }
+  .cella-scaduta { background: #f6d5d2; color: #8a2b22; border-color: #e3a49c; font-weight: 500; }
+  .cella-futura { background: transparent; color: #7a7a7d; border: 1px dashed #d4d4d7; }
+  .cella-stornata { background: #e7e7ea; color: #5d5d60; }
+  .cella-mese:not(:disabled):hover { filter: brightness(0.96); }
+  .cella-futura:not(:disabled):hover { background: rgba(29, 31, 32, 0.04); filter: none; }
+
+  /* ── Barra laterale ── */
+  .voce-menu {
+    position: relative; display: flex; align-items: center; gap: 12px; padding: 9px 12px;
+    font-size: 14px; color: rgba(242, 242, 243, 0.74); text-decoration: none; transition: background-color 120ms, color 120ms;
+  }
+  .voce-menu:hover { background: rgba(242, 242, 243, 0.07); color: #f2f2f3; }
+  .voce-menu.attiva { background: rgba(242, 242, 243, 0.1); color: #f2f2f3; font-weight: 500; }
+  .sezione-menu { margin: 18px 10px 6px; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(242, 242, 243, 0.5); }
+
+  /* ── Pagina di accesso: griglia disegnata sul pannello scuro ── */
+  .griglia-disegnata {
+    background-color: #1d2d3d;
+    background-image: linear-gradient(rgba(242, 242, 243, 0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(242, 242, 243, 0.07) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
 }
 
 /* Stampa della scheda immobile: solo il contenuto, senza sfondi scuri */

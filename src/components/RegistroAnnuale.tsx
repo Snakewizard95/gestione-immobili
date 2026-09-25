@@ -154,22 +154,22 @@ export default function RegistroAnnuale({ contratto, descrizione }: Props) {
       <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
         <Etichetta tono={statoIva(contratto).tono}>{statoIva(contratto).testo}</Etichetta>
         <Etichetta>{etichettaDi(TIPOLOGIE_CONTRATTO, contratto.tipologia)}</Etichetta>
-        <span className="text-gray-500">Decorrenza {formattaData(contratto.data_decorrenza)} · canone mensile {formattaEuro(contratto.canone_mensile_cent)}</span>
-        {statoIva(contratto).soggetto && <span className="text-gray-500">· imposta di registro proposta all'1% (locatore IVA, uso diverso)</span>}
+        <span className="text-neutro-700">Decorrenza {formattaData(contratto.data_decorrenza)} · canone mensile {formattaEuro(contratto.canone_mensile_cent)}</span>
+        {statoIva(contratto).soggetto && <span className="text-neutro-700">· imposta di registro proposta all'1% (locatore IVA, uso diverso)</span>}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-gray-500">Una riga per ogni annualità: ISTAT sul canone mensile, imposta di registro pagata e rimborso del conduttore, con le ricevute allegate.</p>
-        <SoloSeModifica><Bottone onClick={() => setAperta(nuova())}><span className="flex items-center gap-1"><Plus size={16} /> Aggiungi annualità</span></Bottone></SoloSeModifica>
+        <p className="text-sm text-neutro-700">Una riga per ogni annualità: ISTAT sul canone mensile, imposta di registro pagata e rimborso del conduttore, con le ricevute allegate.</p>
+        <SoloSeModifica><Bottone onClick={() => setAperta(nuova())}><Plus size={16} /> Aggiungi annualità</Bottone></SoloSeModifica>
       </div>
       {!contratto.data_decorrenza && <div className="mt-3"><Avviso tipo="attenzione">Il contratto non ha la data di decorrenza: inseriscila nella scheda Dati e l'inizio di ogni annualità verrà compilato da solo.</Avviso></div>}
       <div className="mt-4">
         <Tabella<Annualita> righe={righe} onRiga={(r) => setAperta(r)} vuoto="Nessuna annualità registrata. Premi “Aggiungi annualità” per la prima." colonne={[
-          { chiave: 'anno', etichetta: 'Anno', render: (a) => <span className="font-medium">{a.anno}</span> },
+          { chiave: 'anno', etichetta: 'Anno', render: (a) => <span className="num font-titolo text-[17px] font-semibold">{a.anno}</span> },
           { chiave: 'ini', etichetta: 'Inizio annualità', render: (a) => formattaData(a.data_inizio) },
-          { chiave: 'ist', etichetta: 'ISTAT', render: (a) => a.istat_applicato === 'si' && a.istat_indice_percento != null ? `${String(a.istat_indice_percento).replace('.', ',')}% (quota ${a.istat_quota_percento ?? 100}%)` : <span className="text-gray-400">non applicato</span> },
+          { chiave: 'ist', etichetta: 'ISTAT', render: (a) => a.istat_applicato === 'si' && a.istat_indice_percento != null ? `${String(a.istat_indice_percento).replace('.', ',')}% (quota ${a.istat_quota_percento ?? 100}%)` : <span className="text-neutro-500">non applicato</span> },
           { chiave: 'mp', etichetta: 'Mensile prima', allinea: 'dx', render: (a) => formattaEuro(a.canone_mensile_precedente_cent) },
           { chiave: 'md', etichetta: 'Mensile dopo', allinea: 'dx', render: (a) => <span className="font-medium">{formattaEuro(a.canone_mensile_nuovo_cent)}</span> },
-          { chiave: 'an', etichetta: 'Annuo dopo', allinea: 'dx', render: (a) => <span className="text-gray-500">{formattaEuro(a.canone_nuovo_cent)}</span> },
+          { chiave: 'an', etichetta: 'Annuo dopo', allinea: 'dx', render: (a) => <span className="text-neutro-700">{formattaEuro(a.canone_nuovo_cent)}</span> },
           { chiave: 'imp', etichetta: 'Imposta registro', allinea: 'dx', render: (a) => formattaEuro(a.imposta_cent) },
           { chiave: 'pag', etichetta: 'Pagata', render: (a) => a.imposta_pagata === 'si' ? <Etichetta tono="verde">Sì · {formattaData(a.imposta_data_pagamento)}</Etichetta> : <Etichetta tono="rosso">No</Etichetta> },
           { chiave: 'rim', etichetta: 'Rimborso 50%', render: (a) => a.rimborso_ricevuto === 'si' ? <Etichetta tono="verde">{formattaEuro(a.quota_conduttore_cent)} · {formattaData(a.rimborso_data)}</Etichetta> : <Etichetta tono="giallo">Da incassare {formattaEuro(a.quota_conduttore_cent)}</Etichetta> },

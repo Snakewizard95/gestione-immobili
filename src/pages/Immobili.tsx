@@ -18,7 +18,8 @@ export default function PaginaImmobili() {
       descrivi={(r) => r.indirizzo ?? ''}
       testoRicerca={(r, dati) => dati<Societa>('societa').find((s) => s.id === r.societa_id)?.ragione_sociale ?? ''}
       extraExcel={(r, dati) => ({ 'Società': dati<Societa>('societa').find((s) => s.id === r.societa_id)?.ragione_sociale ?? '', 'Condominio': dati<Condominio>('condomini').find((c) => c.id === r.condominio_id)?.denominazione ?? '' })}
-      azioniRiga={(r) => <Link to={`/stampa/immobile/${r.id}`} title="Scheda immobile (stampa / PDF)" className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"><Printer size={14} /> Scheda</Link>}
+      azioniRiga={(r) => <Link to={`/stampa/immobile/${r.id}`} title="Scheda immobile (stampa / PDF)" className="btn btn-secondario btn-piccolo no-underline"><Printer size={14} /> Scheda</Link>}
+      sottotitolo={(tutti) => `${tutti.length} immobili di ${new Set(tutti.map((i) => i.societa_id)).size} società · ${tutti.filter((i) => i.stato === 'libero').length} liberi`}
       campi={(dati) => [
         { nome: 'societa_id', etichetta: 'Società proprietaria', tipo: 'select', obbligatorio: true,
           opzioni: attivi(dati<Societa>('societa')).map((s) => ({ valore: s.id, etichetta: s.ragione_sociale })) },
@@ -28,7 +29,7 @@ export default function PaginaImmobili() {
         { nome: 'provincia', etichetta: 'Provincia', tipo: 'testo' },
         { nome: 'tipologia', etichetta: 'Tipologia', tipo: 'select', opzioni: TIPOLOGIE_IMMOBILE },
         { nome: 'superficie_mq', etichetta: 'Superficie (mq)', tipo: 'numero' },
-        { nome: 'foglio', etichetta: 'Foglio', tipo: 'testo', sezione: 'Dati catastali' },
+        { nome: 'foglio', etichetta: 'Foglio', tipo: 'testo', sezione: 'Dati catastali', colonne: 3 },
         { nome: 'particella', etichetta: 'Particella', tipo: 'testo' },
         { nome: 'subalterno', etichetta: 'Subalterno', tipo: 'testo' },
         { nome: 'categoria', etichetta: 'Categoria (es. A/2, C/1)', tipo: 'testo' },
@@ -43,6 +44,7 @@ export default function PaginaImmobili() {
         { chiave: 'ind', etichetta: 'Indirizzo', render: (r) => <span className="font-medium">{r.indirizzo}</span> },
         { chiave: 'com', etichetta: 'Comune', render: (r) => r.comune || '—' },
         { chiave: 'tip', etichetta: 'Tipologia', render: (r) => etichettaDi(TIPOLOGIE_IMMOBILE, r.tipologia) },
+        { chiave: 'mq', etichetta: 'Superficie', allinea: 'dx', render: (r) => (r.superficie_mq ? `${r.superficie_mq} mq` : '—') },
         { chiave: 'stato', etichetta: 'Stato', render: (r) => <Etichetta tono={r.stato === 'locato' ? 'verde' : r.stato === 'libero' ? 'giallo' : 'grigio'}>{etichettaDi(STATI_IMMOBILE, r.stato)}</Etichetta> },
       ]}
     />

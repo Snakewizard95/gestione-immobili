@@ -8,6 +8,8 @@ import { puoVedere, sezioneDiPercorso } from '../lib/permessi'
 import { giorniAllaScadenza } from '../lib/auth'
 import { CONFIG } from '../config'
 import { MODO_DEMO } from '../lib/github'
+import logo from '../assets/logo-gruppo.png'
+import { Avviso, Crocette } from './ui'
 
 const VOCI = [
   { a: '/', testo: 'Dashboard', Icona: Home },
@@ -41,21 +43,14 @@ export default function Layout({ children }: { children: ReactNode }) {
   function esciEVai() { esci(); navigate('/login') }
 
   const menu = (
-    <nav className="flex flex-col gap-1 p-3">
+    <nav className="flex flex-col gap-0.5 px-3 pb-3">
       {VOCI.filter((v, i) => 'sep' in v ? VOCI.slice(i + 1).some((w) => 'a' in w && visibile(w.a)) && !('sep' in (VOCI[i + 1] ?? {})) : visibile(v.a)).map((v, i) =>
         'sep' in v ? (
-          <div key={i} className="mt-4 mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-white/50">{v.sep}</div>
+          <div key={i} className="sezione-menu">{v.sep}</div>
         ) : (
-          <NavLink
-            key={v.a}
-            to={v.a}
-            end={v.a === '/'}
-            onClick={() => setAperto(false)}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${isActive ? 'bg-white/15 text-white font-medium' : 'text-white/80 hover:bg-white/10 hover:text-white'}`
-            }
-          >
-            <v.Icona size={18} /> {v.testo}
+          <NavLink key={v.a} to={v.a} end={v.a === '/'} onClick={() => setAperto(false)}
+            className={({ isActive }) => `voce-menu ${isActive ? 'attiva con-crocette crocette-chiare' : ''}`}>
+            {({ isActive }) => <>{isActive && <Crocette />}<v.Icona size={18} className="flex-none" /> {v.testo}</>}
           </NavLink>
         ),
       )}
@@ -65,53 +60,56 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen md:flex">
       {/* Barra laterale (desktop) */}
-      <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0" style={{ background: 'var(--colore-primario)' }}>
-        <div className="flex items-center gap-3 px-5 py-5 text-white">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-white/15 font-bold">GI</div>
-          <div>
-            <div className="font-semibold leading-tight">Gestione Immobili</div>
-            <div className="text-xs text-white/60">Locazioni del gruppo</div>
-          </div>
+      <aside className="hidden bg-accento-900 text-sfondo md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
+        <div className="px-4 pb-2 pt-4">
+          <img src={logo} alt="Gruppo CEC Bigoli" className="h-[58px] w-[224px] object-cover" />
         </div>
-        <div className="flex-1 overflow-y-auto">{menu}</div>
-        <div className="border-t border-white/10 p-4 text-sm text-white/80">
-          <div className="truncate">Collegato come <span className="font-medium text-white">{sessione?.nome}</span>{utente?.ruolo === 'admin' && <span className="ml-1 rounded bg-white/15 px-1.5 py-0.5 text-[10px] uppercase">admin</span>}</div>
-          <button onClick={esciEVai} className="mt-2 flex items-center gap-2 text-white/70 hover:text-white"><LogOut size={16} /> Esci</button>
+        <div className="px-5 py-2.5 font-titolo text-[19px] font-semibold uppercase tracking-[0.01em]">Gestione Immobili</div>
+        <div className="flex-1 overflow-y-auto pt-1">{menu}</div>
+        <div className="flex items-center justify-between gap-3 border-t border-[rgba(242,242,243,0.14)] px-5 py-3.5 text-[13px] text-[rgba(242,242,243,0.74)]">
+          <div className="min-w-0">
+            <div className="truncate">Collegato come <span className="font-bold text-sfondo">{sessione?.nome}</span></div>
+            {utente?.ruolo === 'admin' && <span className="mt-1 inline-block border border-[rgba(242,242,243,0.35)] px-1.5 text-[10px] uppercase tracking-[0.1em]">Admin</span>}
+          </div>
+          <button onClick={esciEVai} title="Esci" aria-label="Esci"
+            className="grid h-8 w-8 flex-none place-items-center border border-[rgba(242,242,243,0.35)] text-sfondo hover:bg-[rgba(242,242,243,0.1)]">
+            <LogOut size={16} />
+          </button>
         </div>
       </aside>
 
       {/* Intestazione (telefono) */}
-      <header className="md:hidden flex items-center justify-between px-4 py-3 text-white" style={{ background: 'var(--colore-primario)' }}>
-        <div className="font-semibold">Gestione Immobili</div>
+      <header className="flex items-center justify-between bg-accento-900 px-4 py-3 text-sfondo md:hidden">
+        <div className="font-titolo text-lg font-semibold uppercase">Gestione Immobili</div>
         <button onClick={() => setAperto(!aperto)} aria-label="Menu">{aperto ? <X /> : <Menu />}</button>
       </header>
       {aperto && (
-        <div className="md:hidden text-white" style={{ background: 'var(--colore-primario)' }}>
+        <div className="bg-accento-900 pt-3 text-sfondo md:hidden">
           {menu}
-          <button onClick={esciEVai} className="flex items-center gap-2 px-6 pb-4 text-white/80"><LogOut size={16} /> Esci ({sessione?.nome})</button>
+          <button onClick={esciEVai} className="flex items-center gap-2 px-6 pb-4 text-[rgba(242,242,243,0.74)]"><LogOut size={16} /> Esci ({sessione?.nome})</button>
         </div>
       )}
 
       {/* Contenuto */}
-      <main className="flex-1 md:ml-64 p-4 md:p-8">
-        {MODO_DEMO && (
-          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
-            Modalità dimostrativa: i dati restano solo in questo browser e non vengono inviati a GitHub.
-          </div>
-        )}
-        {BROWSER_DATATO && (
-          <div className="mb-4 rounded-lg border border-gray-300 bg-gray-100 px-4 py-2 text-xs text-gray-700">
-            Il tuo browser è datato: il sito funziona, ma alcuni dettagli grafici potrebbero essere semplificati. Se possibile usa Firefox o Edge aggiornati (su Windows 7 è disponibile Firefox ESR).
-          </div>
-        )}
-        {avvisoToken && (
-          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            {giorni! < 0
-              ? 'Il token di accesso a GitHub è scaduto: i salvataggi non funzioneranno finché non viene rinnovato (vedi Impostazioni).'
-              : `Il token di accesso a GitHub scade tra ${giorni} giorni: pianificare il rinnovo (vedi Impostazioni).`}
-          </div>
-        )}
-        {children}
+      <main className="min-w-0 flex-1 px-4 pb-16 pt-6 md:ml-64 md:px-11 md:pt-8">
+        <div className="mx-auto max-w-[1400px]">
+          {(MODO_DEMO || BROWSER_DATATO || avvisoToken) && (
+            <div className="mb-6 flex flex-col gap-2.5">
+              {MODO_DEMO && <Avviso tipo="info">Modalità dimostrativa: i dati restano solo in questo browser e non vengono inviati a GitHub.</Avviso>}
+              {BROWSER_DATATO && (
+                <Avviso tipo="info">Il tuo browser è datato: il sito funziona, ma alcuni dettagli grafici potrebbero essere semplificati. Se possibile usa Firefox o Edge aggiornati (su Windows 7 è disponibile Firefox ESR).</Avviso>
+              )}
+              {avvisoToken && (
+                <Avviso tipo="attenzione">
+                  {giorni! < 0
+                    ? 'Il token di accesso a GitHub è scaduto: i salvataggi non funzioneranno finché non viene rinnovato (vedi Impostazioni).'
+                    : `Il token di accesso a GitHub scade tra ${giorni} giorni: pianificare il rinnovo (vedi Impostazioni).`}
+                </Avviso>
+              )}
+            </div>
+          )}
+          {children}
+        </div>
       </main>
     </div>
   )

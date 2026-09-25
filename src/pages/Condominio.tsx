@@ -4,17 +4,20 @@
  * conduttore e allegati (bollettini, verbali assembleari, riparti).
  */
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, FileSpreadsheet, Plus } from 'lucide-react'
+import { FileSpreadsheet, Plus } from 'lucide-react'
 import { righeDaCampi, scaricaExcel } from '../lib/esporta'
 import { SoloSeModifica } from '../components/SoloLettura'
 import Allegati from '../components/Allegati'
 import Modulo, { type CampoDef } from '../components/Modulo'
-import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Tabella, filtraTesto } from '../components/ui'
+import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Gruppo, IntestazionePagina, Riquadro, Segmentato, Tabella, TavolaKpi, filtraTesto } from '../components/ui'
 import { useSessioneAttiva } from '../lib/sessione'
 import { aggiorna, attivi, campiModifica, campiNuovo } from '../lib/store'
 import { A_CARICO, PERIODICITA_PIANO, SI_NO, STATI_PIANO, TIPI_VOCE_CONDOMINIO, etichettaDi, type Condominio, type Conduttore, type Contratto, type Immobile, type PianoRientro, type Societa, type VoceCondominiale } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { aggiungiMesi, formattaData, formattaEuro } from '../lib/utils/formato'
+
+/** Aggiunge giorni a una data ISO */
+const aggiungiGiorni = (iso: string, giorni: number) => new Date(new Date(iso + 'T00:00:00Z').getTime() + giorni * 86_400_000).toISOString().slice(0, 10)
 
 const CATEGORIE = [
   { valore: 'bollettino', etichetta: 'Bollettino / avviso di pagamento' }, { valore: 'bilancio_condominiale', etichetta: 'Verbale assemblea / bilancio / riparto' },
@@ -42,7 +45,6 @@ export default function PaginaCondominio() {
   const [esercizio, setEsercizio] = useState('')
   const [filtro, setFiltro] = useState<'tutte' | 'da_pagare' | 'da_riaddebitare'>('tutte')
   const [aperta, setAperta] = useState<Partial<VoceCondominiale> | null>(null)
-  const [chiusi, setChiusi] = useState<Set<string>>(new Set())
 
   const voci = attivi(dati<VoceCondominiale>('voci_condominiali'))
   const piani = attivi(dati<PianoRientro>('piani_rientro'))
@@ -66,7 +68,7 @@ export default function PaginaCondominio() {
     { nome: 'esercizio', etichetta: 'Esercizio', tipo: 'testo', obbligatorio: true, aiuto: 'Es. 2026 oppure 2025/2026' },
     { nome: 'tipo', etichetta: 'Tipo di voce', tipo: 'select', opzioni: TIPI_VOCE_CONDOMINIO, obbligatorio: true },
     { nome: 'descrizione', etichetta: 'Descrizione', tipo: 'testo', intera: true, aiuto: 'Es. "2ª rata preventivo ordinario 2026", "Conguaglio consuntivo 2025", "Rifacimento facciata rata 3/10"' },
-    { nome: 'data_comunicazione', etichetta: 'Data comunicazione amministratore', tipo: 'data', sezione: 'Importo e scadenza' },
+    { nome: 'data_comunicazione', etichetta: 'Data comunicazione amministratore', tipo: 'data', sezione: 'Importo e scadenza', colonne: 3 },
     { nome: 'scadenza', etichetta: 'Scadenza pagamento', tipo: 'data' },
     { nome: 'importo_cent', etichetta: 'Importo', tipo: 'euro', obbligatorio: true },
     { nome: 'a_carico', etichetta: 'A carico di', tipo: 'select', opzioni: A_CARICO, aiuto: 'Di norma: ordinaria → conduttore, straordinaria → proprietà' },
@@ -108,7 +110,7 @@ export default function PaginaCondominio() {
   }
   const totDaPagare = filtrate.filter((v) => v.pagata !== 'si').reduce((s, v) => s + (v.importo_cent ?? 0), 0)
   const totDaRiaddebitare = filtrate.filter((v) => (v.quota_conduttore_cent ?? 0) > 0 && v.riaddebitata !== 'si').reduce((s, v) => s + (v.quota_conduttore_cent ?? 0), 0)
-  const sel = 'rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm'
+  const sel = 'input w-auto'
   const oggi = new Date().toISOString().slice(0, 10)
 
   // ---- Riepilogo per immobile ----
@@ -204,115 +206,154 @@ export default function PaginaCondominio() {
   const livelloTono = (l: 'ok' | 'attenzione' | 'critico') => (l === 'critico' ? 'rosso' : l === 'attenzione' ? 'giallo' : 'verde')
   const livelloTesto = (l: 'ok' | 'attenzione' | 'critico') => (l === 'critico' ? 'Critico' : l === 'attenzione' ? 'Da pagare' : 'In regola')
 
+  // ---- Numeri in alto ----
+  const GIORNI_URGENTE = 7
+  const tra7 = aggiungiGiorni(oggi, GIORNI_URGENTE)
+  const daPagareVoci = voci.filter((v) => v.pagata !== 'si' && !v.in_piano_id)
+  const urgenti = daPagareVoci.filter((v) => v.scadenza && v.scadenza <= tra7)
+  const quoteDaChiedere = voci.filter((v) => (v.quota_conduttore_cent ?? 0) > 0 && v.riaddebitata !== 'si')
+  const pianiInCorso = piani.filter((p) => p.stato === 'attivo')
+  const residuoPiani = pianiInCorso.reduce((t, p) => t + rateDelPiano(p.id).filter((r) => r.pagata !== 'si').reduce((x, r) => x + (r.importo_cent ?? 0), 0), 0)
+  const esporta = () => scaricaExcel('Oneri_condominiali', [
+    { nome: 'Bollettini e rate', righe: righeDaCampi(filtrate, campi.filter((c) => !['immobile_id', 'condominio_id'].includes(c.nome)), (v) => ({ 'Società': v.societa, 'Immobile': v.immobile, 'Condominio': v.condominio })) },
+    { nome: 'Riepilogo immobili', righe: riepiloghi.map((r) => ({ 'Situazione': livelloTesto(r.livello), 'Società': r.societa, 'Immobile': r.imm.indirizzo, 'Condominio': r.condominio?.denominazione ?? '', 'Amministratore': r.condominio?.amministratore_nome ?? '', 'IBAN': r.condominio?.iban ?? '', 'Voci': r.n, 'Totale': r.totale / 100, 'Pagato': r.pagato / 100, 'Da pagare': r.daPagare / 100, 'Scaduto': r.scaduto / 100, 'Scaduto dal': formattaData(r.piuVecchia), 'In piano': r.inPiano / 100, 'Da incassare dal conduttore': r.daRiaddebitare / 100 })) },
+    { nome: 'Piani di rientro', righe: piani.map((p) => ({ 'Stato': etichettaDi(STATI_PIANO, p.stato), 'Immobile': immobili.find((i) => i.id === p.immobile_id)?.indirizzo ?? '', 'Accordo del': formattaData(p.data_accordo), 'Descrizione': p.descrizione, 'Totale': (p.importo_totale_cent ?? 0) / 100, 'Rate': p.numero_rate ?? '', 'Importo rata': (p.importo_rata_cent ?? 0) / 100, 'Prima scadenza': formattaData(p.prima_scadenza), 'Periodicità': etichettaDi(PERIODICITA_PIANO, p.periodicita) })) },
+  ])
+  const tonoPiano = (st: string) => (st === 'attivo' ? 'giallo' : st === 'concluso' ? 'verde' : 'grigio')
+
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Oneri condominiali</h1>
-        <SoloSeModifica><Bottone onClick={() => setAperta(nuova())}><span className="flex items-center gap-1"><Plus size={16} /> Nuova voce</span></Bottone></SoloSeModifica>
-      </div>
-      <p className="mt-1 text-gray-500">Rate, conguagli e lavori straordinari comunicati dagli amministratori, immobile per immobile, con bollettini e verbali allegati.</p>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <div className="flex rounded-lg border border-gray-300 bg-white p-0.5 text-sm">
-          {([['voci', 'Bollettini e rate'], ['riepilogo', 'Riepilogo per immobile'], ['piani', `Piani di rientro (${piani.filter((p) => p.stato === 'attivo').length})`]] as const).map(([k, t]) => (
-            <button key={k} onClick={() => setScheda(k)} className={`rounded-md px-3 py-1.5 ${scheda === k ? 'text-white' : 'text-gray-600'}`} style={scheda === k ? { background: 'var(--colore-primario)' } : undefined}>{t}</button>
-          ))}
-        </div>
+      <IntestazionePagina kicker="Spese" titolo="Condominio" sottotitolo="Bollettini, rate e conguagli comunicati dagli amministratori, con la quota da riaddebitare ai conduttori."
+        azioni={<>
+          <Bottone variante="secondario" onClick={esporta}><FileSpreadsheet size={16} /> Esporta Excel</Bottone>
+          <SoloSeModifica><Bottone onClick={() => setAperta(nuova())}><Plus size={16} /> Nuovo bollettino</Bottone></SoloSeModifica>
+        </>} />
+
+      {!caricamento && (
+        <TavolaKpi celle={[
+          { titolo: 'Da pagare', valore: formattaEuro(daPagareVoci.reduce((t, v) => t + (v.importo_cent ?? 0), 0)), nota: `${daPagareVoci.length} ${daPagareVoci.length === 1 ? 'bollettino' : 'bollettini'}${urgenti.length ? `, di cui ${urgenti.length} entro il ${formattaData(tra7).slice(0, 5)}` : ''}` },
+          { titolo: 'Da riaddebitare ai conduttori', valore: formattaEuro(quoteDaChiedere.reduce((t, v) => t + (v.quota_conduttore_cent ?? 0), 0)), nota: `${quoteDaChiedere.length} ${quoteDaChiedere.length === 1 ? 'quota non ancora richiesta' : 'quote non ancora richieste'}` },
+          { titolo: 'Piani di rientro', valore: `${pianiInCorso.length} in corso`, nota: `residuo ${formattaEuro(residuoPiani)}` },
+        ]} />
+      )}
+
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <Segmentato valore={scheda} onChange={setScheda} opzioni={[{ valore: 'voci', etichetta: 'Bollettini e rate' }, { valore: 'riepilogo', etichetta: 'Riepilogo per immobile' }, { valore: 'piani', etichetta: `Piani di rientro (${pianiInCorso.length})` }]} />
         <BarraRicerca valore={ricerca} onChange={setRicerca} segnaposto="Cerca società, immobile, condominio…" />
         {scheda === 'voci' && <><select value={esercizio} onChange={(e) => setEsercizio(e.target.value)} className={sel}><option value="">Tutti gli esercizi</option>{esercizi.map((e) => <option key={e} value={e}>{e}</option>)}</select>
-        <select value={filtro} onChange={(e) => setFiltro(e.target.value as typeof filtro)} className={sel}><option value="tutte">Tutte le voci</option><option value="da_pagare">Da pagare</option><option value="da_riaddebitare">Da riaddebitare al conduttore</option></select></>}
-        <Bottone variante="secondario" className="ml-auto" onClick={() => scaricaExcel('Oneri_condominiali', [
-          { nome: 'Bollettini e rate', righe: righeDaCampi(filtrate, campi.filter((c) => !['immobile_id', 'condominio_id'].includes(c.nome)), (v) => ({ 'Società': v.societa, 'Immobile': v.immobile, 'Condominio': v.condominio })) },
-          { nome: 'Riepilogo immobili', righe: riepiloghi.map((r) => ({ 'Situazione': livelloTesto(r.livello), 'Società': r.societa, 'Immobile': r.imm.indirizzo, 'Condominio': r.condominio?.denominazione ?? '', 'Amministratore': r.condominio?.amministratore_nome ?? '', 'IBAN': r.condominio?.iban ?? '', 'Voci': r.n, 'Totale': r.totale / 100, 'Pagato': r.pagato / 100, 'Da pagare': r.daPagare / 100, 'Scaduto': r.scaduto / 100, 'Scaduto dal': formattaData(r.piuVecchia), 'In piano': r.inPiano / 100, 'Da incassare dal conduttore': r.daRiaddebitare / 100 })) },
-          { nome: 'Piani di rientro', righe: piani.map((p) => ({ 'Stato': etichettaDi(STATI_PIANO, p.stato), 'Immobile': immobili.find((i) => i.id === p.immobile_id)?.indirizzo ?? '', 'Accordo del': formattaData(p.data_accordo), 'Descrizione': p.descrizione, 'Totale': (p.importo_totale_cent ?? 0) / 100, 'Rate': p.numero_rate ?? '', 'Importo rata': (p.importo_rata_cent ?? 0) / 100, 'Prima scadenza': formattaData(p.prima_scadenza), 'Periodicità': etichettaDi(PERIODICITA_PIANO, p.periodicita) })) },
-        ])}><span className="flex items-center gap-1"><FileSpreadsheet size={16} /> Esporta Excel</span></Bottone>
-        <span className="text-sm text-gray-500">da pagare <strong className={totDaPagare > 0 ? 'text-red-600' : ''}>{formattaEuro(totDaPagare)}</strong> · da incassare dai conduttori <strong>{formattaEuro(totDaRiaddebitare)}</strong></span>
+        <select value={filtro} onChange={(e) => setFiltro(e.target.value as typeof filtro)} className={sel}><option value="tutte">Tutte le voci</option><option value="da_pagare">Da pagare</option><option value="da_riaddebitare">Da riaddebitare al conduttore</option></select>
+        <span className="ml-auto text-[13px] text-neutro-700">da pagare <strong className={`num ${totDaPagare > 0 ? 'text-err-testo' : 'text-testo'}`}>{formattaEuro(totDaPagare)}</strong> · da incassare dai conduttori <strong className="num text-testo">{formattaEuro(totDaRiaddebitare)}</strong></span></>}
       </div>
 
-      <div className="mt-4">
-        {errore && <Avviso tipo="errore">{errore}</Avviso>}
+      <div>
+        {errore && <div className="mb-4"><Avviso tipo="errore">{errore}</Avviso></div>}
         {caricamento && !errore ? <Caricamento /> : scheda === 'riepilogo' ? (
           <>
-            <div className="mb-3 grid gap-3 sm:grid-cols-4">
-              {[['Da pagare (non in piano)', totRiep.daPagare, totRiep.daPagare > 0 ? 'text-red-600' : ''], ['di cui già scaduto', totRiep.scaduto, totRiep.scaduto > 0 ? 'text-red-600' : ''], ['In piani di rientro', totRiep.inPiano, ''], ['Da incassare dai conduttori', totRiep.daRiaddebitare, '']].map(([t, n, cls]) => (
-                <div key={t as string} className="rounded-xl bg-white p-4 shadow-sm"><div className="text-sm text-gray-500">{t}</div><div className={`text-xl font-semibold ${cls}`}>{formattaEuro(n as number)}</div></div>
-              ))}
-            </div>
+            <TavolaKpi celle={[
+              { titolo: 'Da pagare (non in piano)', valore: formattaEuro(totRiep.daPagare) },
+              { titolo: 'di cui già scaduto', valore: formattaEuro(totRiep.scaduto), tono: totRiep.scaduto > 0 ? 'rosso' : undefined },
+              { titolo: 'In piani di rientro', valore: formattaEuro(totRiep.inPiano) },
+              { titolo: 'Da incassare dai conduttori', valore: formattaEuro(totRiep.daRiaddebitare) },
+            ]} />
             <Tabella<Riepilogo> righe={filtraTesto(riepiloghi.map((r) => ({ ...r, indirizzo: r.imm.indirizzo, cond: r.condominio?.denominazione ?? '', amm: r.condominio?.amministratore_nome ?? '' })), ricerca)} onRiga={(r) => { setScheda('voci'); setRicerca(r.imm.indirizzo) }} vuoto="Nessun immobile collegato a un condominio." colonne={[
               { chiave: 'liv', etichetta: 'Situazione', render: (r) => <Etichetta tono={livelloTono(r.livello)}>{livelloTesto(r.livello)}</Etichetta> },
-              { chiave: 'soc', etichetta: 'Società', render: (r) => r.societa },
-              { chiave: 'imm', etichetta: 'Immobile', render: (r) => <span className="font-medium">{r.imm.indirizzo}</span> },
-              { chiave: 'cond', etichetta: 'Condominio / amministratore', render: (r) => r.condominio ? <span>{r.condominio.denominazione}<br /><span className="text-gray-500">{r.condominio.amministratore_nome}{r.condominio.amministratore_telefono ? ' · ' + r.condominio.amministratore_telefono : ''}</span></span> : <Etichetta tono="giallo">non indicato</Etichetta> },
+              { chiave: 'imm', etichetta: 'Immobile', render: (r) => <div><div className="font-medium">{r.imm.indirizzo}</div><div className="text-xs text-neutro-700">{r.societa}</div></div> },
+              { chiave: 'cond', etichetta: 'Condominio / amministratore', render: (r) => r.condominio ? <div><div>{r.condominio.denominazione}</div><div className="text-xs text-neutro-700">{r.condominio.amministratore_nome}{r.condominio.amministratore_telefono ? ' · ' + r.condominio.amministratore_telefono : ''}</div></div> : <Etichetta tono="giallo">non indicato</Etichetta> },
               { chiave: 'n', etichetta: 'Voci', allinea: 'dx', render: (r) => r.n },
               { chiave: 'tot', etichetta: 'Totale', allinea: 'dx', render: (r) => formattaEuro(r.totale) },
-              { chiave: 'pag', etichetta: 'Pagato', allinea: 'dx', render: (r) => <span className="text-green-700">{formattaEuro(r.pagato)}</span> },
-              { chiave: 'dap', etichetta: 'Da pagare', allinea: 'dx', render: (r) => <span className={r.daPagare > 0 ? 'font-medium text-red-600' : ''}>{formattaEuro(r.daPagare)}</span> },
-              { chiave: 'sca', etichetta: 'Scaduto', allinea: 'dx', render: (r) => r.scaduto > 0 ? <span className="font-medium text-red-600">{formattaEuro(r.scaduto)}<br /><span className="text-xs font-normal">dal {formattaData(r.piuVecchia)}</span></span> : '—' },
+              { chiave: 'pag', etichetta: 'Pagato', allinea: 'dx', render: (r) => <span className="text-ok-testo">{formattaEuro(r.pagato)}</span> },
+              { chiave: 'dap', etichetta: 'Da pagare', allinea: 'dx', render: (r) => <span className={r.daPagare > 0 ? 'font-medium text-err-testo' : ''}>{formattaEuro(r.daPagare)}</span> },
+              { chiave: 'sca', etichetta: 'Scaduto', allinea: 'dx', render: (r) => r.scaduto > 0 ? <span className="font-medium text-err-testo">{formattaEuro(r.scaduto)}<br /><span className="text-xs font-normal">dal {formattaData(r.piuVecchia)}</span></span> : '—' },
               { chiave: 'pia', etichetta: 'In piano', allinea: 'dx', render: (r) => r.inPiano > 0 ? formattaEuro(r.inPiano) : '—' },
               { chiave: 'ria', etichetta: 'Da incassare dal conduttore', allinea: 'dx', render: (r) => r.daRiaddebitare > 0 ? formattaEuro(r.daRiaddebitare) : '—' },
             ]} />
           </>
         ) : scheda === 'piani' ? (
           <>
-            <SoloSeModifica><div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-white p-4 shadow-sm text-sm">
-              <span className="font-medium">Nuovo piano di rientro per l'immobile:</span>
-              <select value={immobilePiano} onChange={(e) => setImmobilePiano(e.target.value)} className={sel}>
-                <option value="">— scegli l'immobile —</option>
-                {immobiliMostrati.sort((a, b) => a.indirizzo.localeCompare(b.indirizzo)).map((i) => <option key={i.id} value={i.id}>{i.indirizzo} — {societaDi(i)} ({vociInsolute(i.id).length} insoluti)</option>)}
-              </select>
-              <Bottone disabled={!immobilePiano || vociInsolute(immobilePiano).length === 0} onClick={() => setPianoAperto(nuovoPiano(immobilePiano))}>Crea piano</Bottone>
-              {immobilePiano && vociInsolute(immobilePiano).length === 0 && <span className="text-gray-500">Nessun bollettino insoluto per questo immobile: inseriscili prima in "Bollettini e rate".</span>}
-            </div></SoloSeModifica>
-            <Tabella righe={filtraTesto(piani.map((p) => { const imm = immobili.find((i) => i.id === p.immobile_id); const rate = rateDelPiano(p.id); return { ...p, immobile: imm?.indirizzo ?? '—', societa: societaDi(imm), condominio: condominioDi(p.condominio_id)?.denominazione ?? '', ratePagate: rate.filter((r) => r.pagata === 'si').length, rateTot: rate.length, pagato: rate.filter((r) => r.pagata === 'si').reduce((s, r) => s + (r.importo_cent ?? 0), 0), prossima: rate.find((r) => r.pagata !== 'si')?.scadenza ?? '' } }), ricerca)}
-              onRiga={(p) => setPianoAperto(piani.find((x) => x.id === p.id) ?? null)} vuoto="Nessun piano di rientro. Scegli un immobile qui sopra per crearne uno dai bollettini insoluti." colonne={[
-              { chiave: 'st', etichetta: 'Stato', render: (p) => <Etichetta tono={p.stato === 'attivo' ? 'blu' : p.stato === 'concluso' ? 'verde' : 'grigio'}>{etichettaDi(STATI_PIANO, p.stato)}</Etichetta> },
-              { chiave: 'soc', etichetta: 'Società', render: (p) => p.societa },
-              { chiave: 'imm', etichetta: 'Immobile', render: (p) => <span className="font-medium">{p.immobile}</span> },
-              { chiave: 'cond', etichetta: 'Condominio', render: (p) => p.condominio || '—' },
-              { chiave: 'acc', etichetta: 'Accordo del', render: (p) => formattaData(p.data_accordo) },
-              { chiave: 'desc', etichetta: 'Descrizione', render: (p) => p.descrizione || '—' },
-              { chiave: 'tot', etichetta: 'Totale', allinea: 'dx', render: (p) => formattaEuro(p.importo_totale_cent) },
-              { chiave: 'rate', etichetta: 'Rate pagate', allinea: 'dx', render: (p) => `${p.ratePagate}/${p.rateTot}` },
-              { chiave: 'pag', etichetta: 'Versato', allinea: 'dx', render: (p) => <span className="text-green-700">{formattaEuro(p.pagato)}</span> },
-              { chiave: 'pro', etichetta: 'Prossima rata', render: (p) => p.prossima ? <span className={p.prossima < oggi ? 'font-medium text-red-600' : ''}>{formattaData(p.prossima)}</span> : '—' },
-            ]} />
+            <SoloSeModifica>
+              <Riquadro className="mb-6 flex flex-wrap items-center gap-3 px-4 py-3.5 text-sm">
+                <span className="font-medium">Nuovo piano di rientro per l'immobile:</span>
+                <select value={immobilePiano} onChange={(e) => setImmobilePiano(e.target.value)} className={sel}>
+                  <option value="">— scegli l'immobile —</option>
+                  {immobiliMostrati.sort((a, b) => a.indirizzo.localeCompare(b.indirizzo)).map((i) => <option key={i.id} value={i.id}>{i.indirizzo} — {societaDi(i)} ({vociInsolute(i.id).length} insoluti)</option>)}
+                </select>
+                <Bottone disabled={!immobilePiano || vociInsolute(immobilePiano).length === 0} onClick={() => setPianoAperto(nuovoPiano(immobilePiano))}>Crea piano</Bottone>
+                {immobilePiano && vociInsolute(immobilePiano).length === 0 && <span className="text-neutro-700">Nessun bollettino insoluto per questo immobile: inseriscili prima in "Bollettini e rate".</span>}
+              </Riquadro>
+            </SoloSeModifica>
+            {(() => {
+              const elencoPiani = filtraTesto(piani.map((p) => { const imm = immobili.find((i) => i.id === p.immobile_id); return { ...p, immobile: imm?.indirizzo ?? '—', societa: societaDi(imm), condominio: condominioDi(p.condominio_id)?.denominazione ?? '' } }), ricerca)
+              if (elencoPiani.length === 0) return <Avviso tipo="info">Nessun piano di rientro. Scegli un immobile qui sopra per crearne uno dai bollettini insoluti.</Avviso>
+              return (
+                <div className="flex flex-col gap-7">
+                  {elencoPiani.map((p) => {
+                    const rate = rateDelPiano(p.id)
+                    const pagate = rate.filter((r) => r.pagata === 'si').length
+                    const prossima = rate.find((r) => r.pagata !== 'si')
+                    const versato = rate.filter((r) => r.pagata === 'si').reduce((t, r) => t + (r.importo_cent ?? 0), 0)
+                    return (
+                      <Riquadro key={p.id} className="grid cursor-pointer gap-6 p-5 hover:bg-[rgba(29,31,32,0.04)] md:grid-cols-2" onClick={() => setPianoAperto(piani.find((x) => x.id === p.id) ?? null)}>
+                        <div>
+                          <Etichetta tono={tonoPiano(p.stato)}>{etichettaDi(STATI_PIANO, p.stato)}</Etichetta>
+                          <h4 className="mb-1 mt-2">{p.immobile}</h4>
+                          <div className="mb-3 text-[13px] text-neutro-700">{p.societa}{p.condominio ? ` · ${p.condominio}` : ''}</div>
+                          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[13px]">
+                            <dt className="text-neutro-700">Accordo del</dt><dd>{formattaData(p.data_accordo)}</dd>
+                            <dt className="text-neutro-700">Totale</dt><dd className="num">{formattaEuro(p.importo_totale_cent)}</dd>
+                            <dt className="text-neutro-700">Versato</dt><dd className="num text-ok-testo">{formattaEuro(versato)}</dd>
+                            <dt className="text-neutro-700">Prossima rata</dt><dd className={prossima && prossima.scadenza < oggi ? 'font-medium text-err-testo' : ''}>{prossima ? `${formattaData(prossima.scadenza)} · ${formattaEuro(prossima.importo_cent)}` : '—'}</dd>
+                            {p.descrizione && <><dt className="text-neutro-700">Descrizione</dt><dd>{p.descrizione}</dd></>}
+                          </dl>
+                        </div>
+                        <div>
+                          <div className="mb-2 text-[13px] text-neutro-700">Avanzamento · {pagate} di {rate.length} rate pagate</div>
+                          <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(44px, 1fr))' }}>
+                            {rate.map((r, i) => (
+                              <div key={r.id} title={`${r.descrizione} · ${formattaData(r.scadenza)} · ${formattaEuro(r.importo_cent)}`}
+                                className={`num flex h-9 items-center justify-center text-xs ${r.pagata === 'si' ? 'bg-accento text-sfondo' : r.id === prossima?.id ? 'border border-accento-800 bg-accento-100 text-accento-800' : 'border border-dashed border-neutro-400 text-neutro-600'}`}>
+                                {i + 1}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </Riquadro>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </>
         ) : perSocieta.size === 0 ? (
-          <Avviso tipo="info">Nessun immobile collegato a un condominio. Apri un immobile in Anagrafiche → Immobili e scegli il condominio, oppure premi "Nuova voce".</Avviso>
+          <Avviso tipo="info">Nessun immobile collegato a un condominio. Apri un immobile in Anagrafiche → Immobili e scegli il condominio, oppure premi "Nuovo bollettino".</Avviso>
         ) : [...perSocieta.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([soc, imms]) => (
-          <div key={soc} className="mb-4">
-            <button onClick={() => setChiusi((s) => { const n = new Set(s); if (n.has(soc)) n.delete(soc); else n.add(soc); return n })} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-white">
-              {chiusi.has(soc) ? <ChevronRight size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
-              <span className="text-base font-semibold">{soc}</span><span className="text-sm text-gray-500">{imms.size} immobili</span>
-            </button>
-            {!chiusi.has(soc) && [...imms.values()].sort((a, b) => a.imm.indirizzo.localeCompare(b.imm.indirizzo)).map(({ imm, voci: vs }) => {
+          <Gruppo key={soc} titolo={soc} sottotitolo={`${imms.size} immobili`}>
+            {[...imms.values()].sort((a, b) => a.imm.indirizzo.localeCompare(b.imm.indirizzo)).map(({ imm, voci: vs }) => {
               const cond = condominioDi(imm.condominio_id)
               return (
-                <div key={imm.id} className="mb-3 pl-2">
-                  <div className="mb-1 flex flex-wrap items-center gap-2 px-2 text-sm">
+                <div key={imm.id} className="mb-6">
+                  <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 px-1 text-sm">
                     <span className="font-medium">{imm.indirizzo}</span>
-                    {cond ? <span className="text-gray-500">{cond.denominazione}{cond.amministratore_nome ? ` · amm. ${cond.amministratore_nome}` : ''}{cond.amministratore_telefono ? ` · ${cond.amministratore_telefono}` : ''}</span> : <Etichetta tono="giallo">condominio non indicato</Etichetta>}
-                    {conduttoreDi(imm.id) && <span className="text-gray-500">· conduttore {conduttoreDi(imm.id)}</span>}
-                    <SoloSeModifica><button onClick={() => setAperta(nuova(imm))} className="ml-auto text-xs hover:underline" style={{ color: 'var(--colore-primario)' }}>+ aggiungi voce</button></SoloSeModifica>
+                    {cond ? <span className="text-[13px] text-neutro-700">{cond.denominazione}{cond.amministratore_nome ? ` · amm. ${cond.amministratore_nome}` : ''}{cond.amministratore_telefono ? ` · ${cond.amministratore_telefono}` : ''}</span> : <Etichetta tono="giallo">condominio non indicato</Etichetta>}
+                    {conduttoreDi(imm.id) && <span className="text-[13px] text-neutro-700">· conduttore {conduttoreDi(imm.id)}</span>}
+                    <SoloSeModifica><Bottone variante="ghost" piccolo className="ml-auto" onClick={() => setAperta(nuova(imm))}><Plus size={14} /> Aggiungi bollettino</Bottone></SoloSeModifica>
                   </div>
                   <Tabella righe={vs} onRiga={(v) => setAperta(voci.find((x) => x.id === v.id) ?? null)} vuoto="Nessuna voce registrata per questo immobile." colonne={[
-                    { chiave: 'es', etichetta: 'Esercizio', render: (v) => v.esercizio },
-                    { chiave: 'tipo', etichetta: 'Tipo', render: (v) => etichettaDi(TIPI_VOCE_CONDOMINIO, v.tipo) },
-                    { chiave: 'desc', etichetta: 'Descrizione', render: (v) => <span className="font-medium">{v.descrizione || '—'} {v.in_piano_id && <Etichetta tono="blu">in piano di rientro</Etichetta>}</span> },
-                    { chiave: 'com', etichetta: 'Comunicata il', render: (v) => formattaData(v.data_comunicazione) },
-                    { chiave: 'scad', etichetta: 'Scadenza', render: (v) => <span className={v.pagata !== 'si' && v.scadenza && v.scadenza < oggi ? 'font-medium text-red-600' : ''}>{formattaData(v.scadenza)}</span> },
-                    { chiave: 'imp', etichetta: 'Importo', allinea: 'dx', render: (v) => <span className="font-medium">{formattaEuro(v.importo_cent)}</span> },
+                    { chiave: 'scad', etichetta: 'Scadenza', render: (v) => <span className={`num whitespace-nowrap ${v.pagata !== 'si' && v.scadenza && v.scadenza < oggi ? 'font-medium text-err-testo' : ''}`}>{formattaData(v.scadenza)}</span> },
+                    { chiave: 'desc', etichetta: 'Descrizione', render: (v) => <div><div className="font-medium">{v.descrizione || '—'} {v.in_piano_id && <Etichetta tono="blu">in piano di rientro</Etichetta>}</div><div className="text-xs text-neutro-700">{etichettaDi(TIPI_VOCE_CONDOMINIO, v.tipo)} · esercizio {v.esercizio}{v.data_comunicazione ? ` · comunicata il ${formattaData(v.data_comunicazione)}` : ''}</div></div> },
+                    { chiave: 'imp', etichetta: 'Importo', allinea: 'dx', render: (v) => <span className="whitespace-nowrap font-medium">{formattaEuro(v.importo_cent)}</span> },
                     { chiave: 'car', etichetta: 'A carico', render: (v) => etichettaDi(A_CARICO, v.a_carico).split(' (')[0] },
-                    { chiave: 'pag', etichetta: 'Pagata', render: (v) => v.pagata === 'si' ? <Etichetta tono="verde">Sì · {formattaData(v.data_pagamento)}</Etichetta> : <Etichetta tono="rosso">No</Etichetta> },
-                    { chiave: 'ria', etichetta: 'Quota conduttore', render: (v) => !(v.quota_conduttore_cent ?? 0) ? <span className="text-gray-400">—</span> : v.riaddebitata === 'si' ? <Etichetta tono="verde">{formattaEuro(v.quota_conduttore_cent)} incassata</Etichetta> : <Etichetta tono="giallo">{formattaEuro(v.quota_conduttore_cent)} da incassare</Etichetta> },
+                    { chiave: 'quo', etichetta: 'Quota conduttore', allinea: 'dx', render: (v) => (v.quota_conduttore_cent ?? 0) > 0 ? formattaEuro(v.quota_conduttore_cent) : <span className="text-neutro-500">—</span> },
+                    { chiave: 'pag', etichetta: 'Pagata', render: (v) => v.pagata === 'si' ? <Etichetta tono="verde">Sì{v.data_pagamento ? ` · ${formattaData(v.data_pagamento)}` : ''}</Etichetta> : <Etichetta tono={v.scadenza && v.scadenza <= tra7 ? 'rosso' : 'giallo'}>No</Etichetta> },
+                    { chiave: 'ria', etichetta: 'Riaddebito', render: (v) => !(v.quota_conduttore_cent ?? 0) ? <Etichetta tono="grigio">Non dovuto</Etichetta> : v.riaddebitata === 'si' ? <Etichetta tono="verde">Richiesto{v.data_riaddebito ? ` il ${formattaData(v.data_riaddebito)}` : ''}</Etichetta> : <Etichetta tono="giallo">Da richiedere</Etichetta> },
                   ]} />
                 </div>
               )
             })}
-          </div>
+          </Gruppo>
         ))}
       </div>
 
-      <Finestra titolo={aperta?.id ? `Voce condominiale — ${immobili.find((i) => i.id === aperta.immobile_id)?.indirizzo ?? ''}` : 'Nuova voce condominiale'} aperta={aperta !== null} onChiudi={() => setAperta(null)} larga>
+      <Finestra kicker={aperta?.immobile_id ? societaDi(immobili.find((i) => i.id === aperta.immobile_id)) : undefined} titolo={aperta?.id ? `Bollettino — ${immobili.find((i) => i.id === aperta.immobile_id)?.indirizzo ?? ''}` : 'Nuovo bollettino'} aperta={aperta !== null} onChiudi={() => setAperta(null)} larga>
         {aperta && (
           <>
             <Modulo<VoceCondominiale> campi={campi} iniziale={aperta} onSalva={salva} onAnnulla={() => setAperta(null)} onElimina={aperta.id ? elimina : undefined} derivati={derivati} />
@@ -327,17 +368,17 @@ export default function PaginaCondominio() {
       <Finestra titolo={pianoAperto?.id ? `Piano di rientro — ${immobili.find((i) => i.id === pianoAperto.immobile_id)?.indirizzo ?? ''}` : `Nuovo piano di rientro — ${immobili.find((i) => i.id === pianoAperto?.immobile_id)?.indirizzo ?? ''}`} aperta={pianoAperto !== null} onChiudi={() => setPianoAperto(null)} larga>
         {pianoAperto && (
           <>
-            {(() => { const c = condominioDi(pianoAperto.condominio_id ?? ''); return c ? <div className="mb-4 rounded-lg bg-gray-50 px-4 py-3 text-sm"><strong>{c.denominazione}</strong> · amm. {c.amministratore_nome || '—'} {c.amministratore_telefono && `· ${c.amministratore_telefono}`}{c.iban && <div className="mt-1">IBAN per i bonifici: <span className="font-mono">{c.iban}</span>{c.iban_intestatario && ` (${c.iban_intestatario})`}</div>}</div> : null })()}
+            {(() => { const c = condominioDi(pianoAperto.condominio_id ?? ''); return c ? <div className="mb-5"><Avviso tipo="info"><strong>{c.denominazione}</strong> · amm. {c.amministratore_nome || '—'} {c.amministratore_telefono && `· ${c.amministratore_telefono}`}{c.iban && <div className="mt-1">IBAN per i bonifici: <span className="font-mono">{c.iban}</span>{c.iban_intestatario && ` (${c.iban_intestatario})`}</div>}</Avviso></div> : null })()}
             {pianoAperto.id && <div className="mb-4"><Avviso tipo="info">Le rate del piano sono già state generate nella scheda "Bollettini e rate" (tipo "Rata di un piano di rientro"): registra lì i pagamenti. Impostando lo stato su "Concluso", i bollettini inclusi vengono segnati come pagati.</Avviso></div>}
             <Modulo<PianoRientro> campi={campiPiano(pianoAperto.immobile_id ?? '', pianoAperto.id)} iniziale={pianoAperto} onSalva={salvaPiano} onAnnulla={() => setPianoAperto(null)} onElimina={pianoAperto.id ? eliminaPiano : undefined} derivati={derivatiPiano} etichettaSalva={pianoAperto.id ? 'Salva' : 'Salva e genera le rate'} />
             {pianoAperto.id && (
               <div className="mt-6">
-                <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">Rate del piano</h3>
+                <h6 className="mb-3 text-accento-700">Rate del piano</h6>
                 <Tabella righe={rateDelPiano(pianoAperto.id)} onRiga={(v) => { setPianoAperto(null); setAperta(v) }} vuoto="Nessuna rata generata." colonne={[
                   { chiave: 'd', etichetta: 'Rata', render: (v) => v.descrizione },
-                  { chiave: 's', etichetta: 'Scadenza', render: (v) => <span className={v.pagata !== 'si' && v.scadenza < oggi ? 'font-medium text-red-600' : ''}>{formattaData(v.scadenza)}</span> },
+                  { chiave: 's', etichetta: 'Scadenza', render: (v) => <span className={v.pagata !== 'si' && v.scadenza < oggi ? 'font-medium text-err-testo' : ''}>{formattaData(v.scadenza)}</span> },
                   { chiave: 'i', etichetta: 'Importo', allinea: 'dx', render: (v) => formattaEuro(v.importo_cent) },
-                  { chiave: 'p', etichetta: 'Pagata', render: (v) => v.pagata === 'si' ? <Etichetta tono="verde">Sì · {formattaData(v.data_pagamento)}</Etichetta> : <Etichetta tono="rosso">No</Etichetta> },
+                  { chiave: 'p', etichetta: 'Pagata', render: (v) => v.pagata === 'si' ? <Etichetta tono="verde">Sì{v.data_pagamento ? ` · ${formattaData(v.data_pagamento)}` : ''}</Etichetta> : <Etichetta tono="rosso">No</Etichetta> },
                 ]} />
                 <div className="mt-6"><Allegati collezione="piani_rientro" recordId={pianoAperto.id} categorie={[{ valore: 'accordo', etichetta: 'Accordo / lettera amministratore' }, { valore: 'ricevuta', etichetta: 'Ricevuta pagamento' }, { valore: 'altro', etichetta: 'Altro' }]} descrizione="piano di rientro" /></div>
               </div>

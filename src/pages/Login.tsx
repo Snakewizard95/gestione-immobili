@@ -5,6 +5,8 @@ import { decifraToken, type TokenCifrato } from '../lib/auth'
 import { MODO_DEMO, TOKEN_DEMO, verificaAccesso } from '../lib/github'
 import { UTENTI, primoPercorso } from '../lib/permessi'
 import { useSessione } from '../lib/sessione'
+import logo from '../assets/logo-gruppo.png'
+import { Avviso, Bottone } from '../components/ui'
 
 export default function Login() {
   const { sessione, accedi } = useSessione()
@@ -36,37 +38,50 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center px-4" style={{ background: 'var(--colore-primario)' }}>
-      <form onSubmit={invia} className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-xl">
-        <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-xl text-xl font-bold text-white" style={{ background: 'var(--colore-primario)' }}>GI</div>
-          <h1 className="text-xl font-semibold">Gestione Immobili</h1>
-          <p className="text-sm text-gray-500">Locazioni delle società del gruppo</p>
-        </div>
+    <div className="grid min-h-screen md:h-screen md:grid-cols-[1fr_1.1fr]">
+      {/* Colonna sinistra: modulo di accesso */}
+      <div className="flex items-center justify-center overflow-y-auto bg-sfondo px-6 py-10">
+        <form onSubmit={invia} className="w-full max-w-[400px]">
+          <img src={logo} alt="Gruppo CEC Bigoli" className="mb-10 h-24 w-full object-cover" />
+          <div className="kicker mb-2">Accesso riservato</div>
+          <h1 className="m-0 mb-7 text-[38px] md:text-[42px]">Entra in Gestione Immobili</h1>
 
-        <label className="block text-sm font-medium">Chi sei?
-          <select value={utenteId} onChange={(e) => setUtenteId(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2">
-            {UTENTI.map((u) => <option key={u.id} value={u.id}>{u.nome}{u.ruolo === 'admin' ? ' (amministratore)' : ''}</option>)}
-          </select>
-        </label>
-        <label className="mt-4 block text-sm font-medium">La tua password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password"
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2" />
-        </label>
+          <div className="flex flex-col gap-[18px]">
+            <label className="block"><span className="etichetta-campo">Chi sei?</span>
+              <select value={utenteId} onChange={(e) => setUtenteId(e.target.value)} className="input">
+                {UTENTI.map((u) => <option key={u.id} value={u.id}>{u.nome}{u.ruolo === 'admin' ? ' (amministratore)' : ''}</option>)}
+              </select>
+            </label>
+            <label className="block"><span className="etichetta-campo">La tua password</span>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" className="input" />
+            </label>
 
-        {MODO_DEMO && (
-          <div className="mt-4 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
-            <strong>Modalità dimostrativa.</strong> Le password non sono ancora configurate: i dati vengono salvati solo in questo browser e qualsiasi password è accettata. I permessi per persona sono comunque attivi.
+            {MODO_DEMO && (
+              <Avviso tipo="info"><strong>Modalità dimostrativa.</strong> Le password non sono ancora configurate: i dati vengono salvati solo in questo browser e qualsiasi password è accettata. I permessi per persona sono comunque attivi.</Avviso>
+            )}
+            {errore && <Avviso tipo="errore">{errore}</Avviso>}
           </div>
-        )}
-        {errore && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errore}</div>}
 
-        <button type="submit" disabled={inCorso}
-          className="mt-6 w-full rounded-lg py-2.5 font-medium text-white disabled:opacity-60" style={{ background: 'var(--colore-primario)' }}>
-          {inCorso ? 'Verifica in corso…' : 'Entra'}
-        </button>
-        <p className="mt-4 text-center text-xs text-gray-400">Ogni modifica viene registrata con il nome di chi la fa.</p>
-      </form>
+          <Bottone type="submit" disabled={inCorso} className="mt-7 !min-h-11 w-full !text-base">
+            {inCorso ? 'Verifica in corso…' : 'Entra'}
+          </Bottone>
+          <p className="mt-4 text-[13px] text-neutro-700">Ogni modifica viene registrata con il nome di chi la fa.</p>
+        </form>
+      </div>
+
+      {/* Colonna destra: pannello scuro con griglia disegnata */}
+      <div className="griglia-disegnata hidden flex-col justify-between p-14 text-sfondo md:flex">
+        <div className="flex justify-between text-[11px] uppercase tracking-[0.14em] text-[rgba(242,242,243,0.7)]">
+          <span>Gruppo CEC Bigoli</span><span>Roma · Milano</span>
+        </div>
+        <div>
+          <div className="font-titolo text-[clamp(64px,8vw,112px)] font-semibold uppercase leading-[0.9]">Gestione<br />Immobili</div>
+          <p className="mt-6 text-lg text-[rgba(242,242,243,0.8)]">Locazioni delle società del gruppo</p>
+        </div>
+        <div className="flex justify-between border-t border-[rgba(242,242,243,0.25)] pt-4 text-[11px] uppercase tracking-[0.14em] text-[rgba(242,242,243,0.7)]">
+          <span>Contratti</span><span>Registro</span><span>Canoni</span><span>Condominio</span>
+        </div>
+      </div>
     </div>
   )
 }

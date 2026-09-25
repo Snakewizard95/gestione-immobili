@@ -25,6 +25,7 @@ export default function PaginaCondomini() {
     <PaginaAnagrafica<ConForm>
       titolo="Condomini e amministratori" singolare="condominio" collezione="condomini" dipendenze={['immobili', 'societa']} vuotoNuovo={VUOTO as Partial<ConForm>}
       descrivi={(r) => r.denominazione ?? ''}
+      sottotitolo={(tutti) => `${tutti.length} ${tutti.length === 1 ? 'condominio' : 'condomini'} con amministratore e coordinate per i bonifici`}
       campiVirtuali={['immobili_ids']}
       prepara={(r, dati) => ({ immobili_ids: r.id ? attivi(dati<Immobile>('immobili')).filter((i) => i.condominio_id === r.id).map((i) => i.id) : [] })}
       dopoSalva={collegaImmobili}
@@ -54,7 +55,7 @@ export default function PaginaCondomini() {
         { chiave: 'imm', etichetta: 'Immobili collegati', render: (r) => { const n = attivi(dati<Immobile>('immobili')).filter((i) => i.condominio_id === r.id); return n.length ? <span>{n.map((i) => i.indirizzo).join(', ')}</span> : <Etichetta tono="giallo">nessuno</Etichetta> } },
         { chiave: 'amm', etichetta: 'Amministratore', render: (r) => r.amministratore_nome || '—' },
         { chiave: 'tel', etichetta: 'Telefono', render: (r) => r.amministratore_telefono || '—' },
-        { chiave: 'iban', etichetta: 'IBAN', render: (r) => r.iban ? <span className="font-mono text-xs">{r.iban}</span> : '—' },
+        { chiave: 'iban', etichetta: 'IBAN', render: (r) => r.iban ? <span className="whitespace-nowrap font-mono text-xs">{r.iban}</span> : '—' },
       ]}
     />
   )
