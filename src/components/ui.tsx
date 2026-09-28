@@ -3,7 +3,7 @@
  * Colori e classi sono in index.css: qui niente colori con opacità Tailwind (vedi nota Chrome 109).
  */
 import { useEffect, useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronRight, CircleAlert, CircleCheck, Info, Search, TriangleAlert, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, Copy, Info, Search, TriangleAlert, X } from 'lucide-react'
 
 /** Le quattro crocette "+" sugli angoli: vanno dentro un elemento con classe "blueprint" o "con-crocette". */
 export function Crocette() {
@@ -192,5 +192,38 @@ export function Gruppo({ titolo, sottotitolo, destra, children, apertoIniziale =
       </button>
       {aperto && children}
     </section>
+  )
+}
+
+/** Copia un testo negli appunti (con ripiego per i browser datati, es. Chrome 109 su pagine non sicure). */
+export async function copiaNegliAppunti(testo: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(testo); return true }
+  } catch { /* si prova il metodo alternativo */ }
+  const area = document.createElement('textarea')
+  area.value = testo
+  area.setAttribute('readonly', '')
+  area.style.position = 'fixed'; area.style.opacity = '0'
+  document.body.appendChild(area)
+  area.select()
+  let ok = false
+  try { ok = document.execCommand('copy') } catch { ok = false }
+  document.body.removeChild(area)
+  return ok
+}
+
+/** Pulsante "Copia": mette il testo negli appunti e conferma con "Copiato". */
+export function Copia({ testo, etichetta = 'Copia', titolo }: { testo: string; etichetta?: string; titolo?: string }) {
+  const [stato, setStato] = useState<'' | 'ok' | 'errore'>('')
+  async function copia() {
+    const ok = await copiaNegliAppunti(testo)
+    setStato(ok ? 'ok' : 'errore')
+    window.setTimeout(() => setStato(''), 1800)
+  }
+  return (
+    <button type="button" onClick={copia} disabled={!testo} title={titolo ?? `Copia: ${testo}`} className="btn btn-ghost btn-piccolo flex-none">
+      {stato === 'ok' ? <Check size={14} /> : <Copy size={14} />}
+      {stato === 'ok' ? 'Copiato' : stato === 'errore' ? 'Non riuscito' : etichetta}
+    </button>
   )
 }

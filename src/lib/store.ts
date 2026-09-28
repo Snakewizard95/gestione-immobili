@@ -14,6 +14,7 @@ export type NomeCollezione =
   | 'contratti' | 'annualita'
   | 'movimenti'
   | 'voci_condominiali' | 'piani_rientro' | 'allegati'
+  | 'comunicazioni' | 'tassi_legali'
 
 export interface RecordBase {
   id: string

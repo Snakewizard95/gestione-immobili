@@ -3,10 +3,12 @@
  * prima/dopo), imposta di registro e rimborso del conduttore, ciascuna con i propri allegati.
  */
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
-import { useSessioneAttiva } from '../lib/sessione'
+import { FileText, Plus, Receipt } from 'lucide-react'
+import { useSessioneAttiva, useUtente } from '../lib/sessione'
+import { puoVedere } from '../lib/permessi'
+import { FinestraF24, FinestraLetteraIstat } from './Documenti'
 import { aggiorna, attivi, campiModifica, campiNuovo } from '../lib/store'
-import { SI_NO, TIPOLOGIE_CONTRATTO, etichettaDi, inCedolare, statoIva, type Allegato, type Annualita, type Conduttore, type Contratto, type Immobile, type Opzione, type Societa } from '../lib/tipi'
+import { SI_NO, TIPI_COMUNICAZIONE, TIPOLOGIE_CONTRATTO, etichettaDi, inCedolare, statoIva, type Allegato, type Comunicazione, type Annualita, type Conduttore, type Contratto, type Immobile, type Opzione, type Societa } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaData, formattaEuro } from '../lib/utils/formato'
 import Allegati from './Allegati'
@@ -81,8 +83,11 @@ interface Props {
 
 export default function RegistroAnnuale({ contratto, descrizione }: Props) {
   const { token, nome } = useSessioneAttiva()
-  const { dati } = useCollezioni(['annualita', 'allegati', 'immobili', 'societa', 'conduttori'])
+  const { dati } = useCollezioni(['annualita', 'allegati', 'immobili', 'societa', 'conduttori', 'comunicazioni'])
   const cedolare = inCedolare(contratto)
+  const vedeDocumenti = puoVedere(useUtente(), 'comunicazioni')
+  const [f24, setF24] = useState<string | null>(null)
+  const [lettera, setLettera] = useState<string | null>(null)
   const [aperta, setAperta] = useState<Partial<Annualita> | null>(null)
 
   const righe = attivi(dati<Annualita>('annualita')).filter((a) => a.contratto_id === contratto.id).sort((a, b) => a.anno - b.anno)
@@ -195,11 +200,31 @@ export default function RegistroAnnuale({ contratto, descrizione }: Props) {
           { chiave: 'md', etichetta: 'Mensile dopo', allinea: 'dx', render: (a) => <span className="font-medium">{formattaEuro(a.canone_mensile_nuovo_cent)}</span> },
           { chiave: 'an', etichetta: 'Annuo dopo', allinea: 'dx', render: (a) => <span className="text-neutro-700">{formattaEuro(a.canone_nuovo_cent)}</span> },
           { chiave: 'imp', etichetta: 'Imposta registro', allinea: 'dx', render: (a) => cedolare ? '—' : formattaEuro(a.imposta_cent) },
-          { chiave: 'pag', etichetta: 'Pagata', render: (a) => cedolare ? <Etichetta tono="grigio">Non dovuta</Etichetta> : a.imposta_pagata === 'si' ? <Etichetta tono="verde">Sì · {formattaData(a.imposta_data_pagamento)}</Etichetta> : <Etichetta tono="rosso">No</Etichetta> },
+          { chiave: 'pag', etichetta: 'Pagata', render: (a) => cedolare ? <Etichetta tono="grigio">Non dovuta</Etichetta> : a.imposta_pagata === 'si' ? <span><Etichetta tono="verde">Sì · {formattaData(a.imposta_data_pagamento)}</Etichetta>{(a.ravvedimento_sanzione_cent || a.ravvedimento_interessi_cent) ? <span className="mt-0.5 block text-xs text-neutro-700">+ ravvedimento {formattaEuro((a.ravvedimento_sanzione_cent ?? 0) + (a.ravvedimento_interessi_cent ?? 0))}</span> : null}</span> : <Etichetta tono="rosso">No</Etichetta> },
           { chiave: 'rim', etichetta: 'Rimborso 50%', render: (a) => cedolare ? <Etichetta tono="grigio">Non dovuto</Etichetta> : a.rimborso_ricevuto === 'si' ? <Etichetta tono="verde">{formattaEuro(a.quota_conduttore_cent)} · {formattaData(a.rimborso_data)}</Etichetta> : <Etichetta tono="giallo">Da incassare {formattaEuro(a.quota_conduttore_cent)}</Etichetta> },
           { chiave: 'all', etichetta: 'Allegati', allinea: 'dx', render: (a) => nAllegati(a.id) || '—' },
+          ...(vedeDocumenti && !cedolare ? [{ chiave: 'doc', etichetta: 'Documenti', render: (a: Annualita) => (
+            <span className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+              {(a.imposta_cent ?? 0) > 0 && <Bottone variante="ghost" piccolo title="Prepara l'F24 dell'imposta di registro" onClick={() => setF24(a.id)}><Receipt size={14} /> F24</Bottone>}
+              {a.istat_applicato === 'si' && <Bottone variante="ghost" piccolo title="Prepara la lettera di aumento ISTAT" onClick={() => setLettera(a.id)}><FileText size={14} /> Lettera</Bottone>}
+            </span>
+          ) }] : []),
         ]} />
       </div>
+      {vedeDocumenti && (() => {
+        const storico = attivi(dati<Comunicazione>('comunicazioni')).filter((c) => c.contratto_id === contratto.id).sort((a, b) => b.data.localeCompare(a.data))
+        if (storico.length === 0) return null
+        return (
+          <div className="mt-6">
+            <h6 className="mb-2 text-accento-700">Documenti pagati e inviati</h6>
+            <ul className="text-[13px]">{storico.map((c) => (
+              <li key={c.id} className="border-b border-riga py-1.5 last:border-0"><span className="num">{formattaData(c.data)}</span> · <strong>{etichettaDi(TIPI_COMUNICAZIONE, c.tipo)}</strong> · {c.oggetto}{c.dettagli ? <span className="text-neutro-700"> · {c.dettagli}</span> : null}<span className="text-neutro-700"> · {c.creato_da}</span></li>
+            ))}</ul>
+          </div>
+        )
+      })()}
+      <FinestraF24 annualitaId={f24} onChiudi={() => setF24(null)} />
+      <FinestraLetteraIstat annualitaId={lettera} onChiudi={() => setLettera(null)} />
       <Finestra titolo={aperta?.id ? `Annualità ${aperta.anno} — ${descrizione}` : `Nuova annualità — ${descrizione}`} aperta={aperta !== null} onChiudi={() => setAperta(null)} larga>
         {aperta && (
           <>

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  Building2, Home, Users, Landmark, FileText, Euro, Receipt, FileSpreadsheet, History, Settings, LogOut, Menu, X, Briefcase, Percent,
+  Building2, Home, Users, Landmark, FileText, Euro, Receipt, FileSpreadsheet, History, Settings, LogOut, Menu, X, Briefcase, Percent, Mail,
 } from 'lucide-react'
 import { useSessione, useUtente } from '../lib/sessione'
 import { puoVedere, sezioneDiPercorso } from '../lib/permessi'
@@ -17,6 +17,7 @@ const VOCI = [
   { a: '/registro', testo: 'ISTAT e imposta di registro', Icona: Percent },
   { a: '/canoni', testo: 'Canoni e incassi', Icona: Euro },
   { a: '/condominio', testo: 'Condominio', Icona: Receipt },
+  { a: '/comunicazioni', testo: 'Documenti e comunicazioni', Icona: Mail },
   { sep: 'Anagrafiche' },
   { a: '/societa', testo: 'Società', Icona: Briefcase },
   { a: '/immobili', testo: 'Immobili', Icona: Building2 },

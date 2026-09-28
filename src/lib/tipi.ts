@@ -149,6 +149,9 @@ export interface Annualita extends RecordBase {
   quota_conduttore_cent: number | null
   rimborso_ricevuto: string             // si | no
   rimborso_data: string
+  // Ravvedimento operoso versato insieme all'imposta (se pagata in ritardo)
+  ravvedimento_sanzione_cent?: number | null
+  ravvedimento_interessi_cent?: number | null
   note: string
 }
 
@@ -289,4 +292,28 @@ export interface PianoRientro extends RecordBase {
   periodicita: string          // PERIODICITA_PIANO
   stato: string                // STATI_PIANO
   note: string
+}
+
+/* ====================== Documenti e comunicazioni ====================== */
+
+export const TIPI_COMUNICAZIONE: Opzione[] = [
+  { valore: 'f24', etichetta: 'F24 imposta di registro' }, { valore: 'lettera_istat', etichetta: 'Lettera aumento ISTAT' },
+]
+
+/** Registro di un documento preparato e poi pagato / inviato ("Segna come pagato / inviata"). */
+export interface Comunicazione extends RecordBase {
+  tipo: string              // TIPI_COMUNICAZIONE
+  contratto_id: string
+  annualita_id: string
+  data: string              // data del pagamento o dell'invio
+  destinatario: string      // conduttore, email o PEC; per l'F24 "Agenzia delle Entrate"
+  oggetto: string
+  dettagli: string          // es. importi dell'F24
+  note: string
+}
+
+/** Tasso d'interesse legale di un anno, usato per gli interessi del ravvedimento operoso. */
+export interface TassoLegale extends RecordBase {
+  anno: number
+  tasso_percento: number
 }
