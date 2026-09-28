@@ -99,7 +99,7 @@ export default function PaginaContratti() {
       aiuto: 'Solo tra persone fisiche (locatore privato, non società). Con "Sì" l’imposta di registro annuale non è dovuta, il canone è senza IVA e l’ISTAT non si applica' },
     { nome: 'reg_data', etichetta: 'Data registrazione', tipo: 'data' },
     { nome: 'reg_ufficio', etichetta: 'Ufficio', tipo: 'testo' },
-    { nome: 'reg_codice', etichetta: 'Codice identificativo', tipo: 'testo' },
+    { nome: 'reg_codice', etichetta: 'Codice identificativo del contratto', tipo: 'testo', doppia: true, aiuto: '17 caratteri, es. TXX26T001234000XY (ricevuta di registrazione): va negli "elementi identificativi" dell’F24' },
     { nome: 'reg_modalita', etichetta: 'Modalità', tipo: 'select', opzioni: MODALITA_REGISTRAZIONE },
     { nome: 'reg_imposta_cent', etichetta: 'Imposta prima registrazione', tipo: 'euro' },
     { nome: 'reg_quota_conduttore_cent', etichetta: 'di cui a carico conduttore', tipo: 'euro' },

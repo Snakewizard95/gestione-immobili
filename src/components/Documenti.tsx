@@ -5,7 +5,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { FileDown, Printer } from 'lucide-react'
-import { contestoDi, preparaF24, preparaLetteraIstat, tassiLegali, type ContestoAnnualita } from '../lib/documenti'
+import { contestoDi, preparaF24, preparaLetteraIstat, tassiLegali, type ContestoAnnualita, type Problema } from '../lib/documenti'
 import { formattaPercentuale } from '../lib/ravvedimento'
 import { apriOScaricaPdf, creaF24ElidePdf } from '../lib/f24pdf'
 import { puoModificare } from '../lib/permessi'
@@ -34,13 +34,14 @@ export function useDatiDocumenti() {
 
 const descrizione = (ctx: ContestoAnnualita) => `${ctx.immobile?.indirizzo ?? '—'} / ${ctx.conduttore?.denominazione ?? '—'}`
 
-function Mancanti({ voci, cosa }: { voci: string[]; cosa: string }) {
+/** Elenco dei dati mancanti o errati, ciascuno con il collegamento alla pagina dove correggerlo. */
+function Mancanti({ voci, cosa, grave }: { voci: Problema[]; cosa: string; grave?: boolean }) {
   if (voci.length === 0) return null
   return (
     <div className="mb-5">
-      <Avviso tipo="attenzione">
-        <strong>Mancano alcuni dati per {cosa}:</strong>
-        <ul className="mt-1 list-disc pl-5">{voci.map((v) => <li key={v}>{v}</li>)}</ul>
+      <Avviso tipo={grave ? 'errore' : 'attenzione'}>
+        <strong>{grave ? `Attenzione: manca un dato importante per ${cosa}. Ricontrolla prima di procedere.` : `Mancano alcuni dati per ${cosa}:`}</strong>
+        <ul className="mt-1 list-disc pl-5">{voci.map((v) => <li key={v.testo}>{v.testo} · <Link to={v.percorso} className="underline">correggi</Link></li>)}</ul>
       </Avviso>
     </div>
   )
@@ -67,9 +68,10 @@ export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | n
   const [inCorso, setInCorso] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [generando, setGenerando] = useState(false)
+  const [avvertimento, setAvvertimento] = useState(false)
   const ctx = annualitaId ? d.contesto(annualitaId) : null
 
-  function chiudi() { setConferma(false); setErrore(null); onChiudi() }
+  function chiudi() { setConferma(false); setErrore(null); setAvvertimento(false); onChiudi() }
 
   let corpo: ReactNode = <Caricamento />
   let titolo = 'F24 imposta di registro'
@@ -83,6 +85,11 @@ export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | n
       const f = preparaF24(ctx, pagamento, d.tassi)
       const r = f.ravvedimento
       const pagata = a.imposta_pagata === 'si'
+      async function scarica() {
+        setGenerando(true); setErrore(null)
+        try { apriOScaricaPdf(await creaF24ElidePdf(f), `F24_Elide_${(ctx!.immobile?.indirizzo ?? 'immobile').replace(/[^\w]+/g, '_')}_${a.anno}.pdf`) }
+        catch (e) { setErrore('Impossibile creare il modello F24: ' + (e as Error).message) } finally { setGenerando(false) }
+      }
       async function segnaPagato() {
         setInCorso(true); setErrore(null)
         try {
@@ -102,7 +109,8 @@ export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | n
       corpo = (
         <>
           {pagata && <div className="mb-5"><Avviso tipo="ok">Imposta già segnata come pagata il {formattaData(a.imposta_data_pagamento)}{a.ravvedimento_sanzione_cent ? `, con ravvedimento (sanzione ${formattaEuro(a.ravvedimento_sanzione_cent)}, interessi ${formattaEuro(a.ravvedimento_interessi_cent)})` : ''}.</Avviso></div>}
-          <Mancanti voci={f.mancanti} cosa="compilare l'F24" />
+          <Mancanti voci={f.mancanti} cosa="compilare il modello F24" grave />
+          {f.contribuente.domicilioDaSede && <div className="mb-5"><Avviso tipo="info">Il domicilio fiscale è stato ricavato dalla "Sede legale" della società: controllalo nel modello o compilalo nei "Dati per il modello F24" dell'anagrafica.</Avviso></div>}
           <div className="mb-5 grid gap-4 sm:grid-cols-3">
             <div><span className="etichetta-campo">Inizio annualità</span><div className="num py-1.5">{formattaData(a.data_inizio)}</div></div>
             <div><span className="etichetta-campo">Scadenza del versamento</span><div className="num py-1.5">{formattaData(r.scadenza)}</div></div>
@@ -148,13 +156,23 @@ export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | n
           </Riquadro>
           <p className="mb-5 text-xs text-neutro-700">Il pulsante crea il modello ufficiale F24 Elide dell'Agenzia delle Entrate già compilato (tre copie), da stampare e presentare in banca o in posta: restano da compilare a mano solo la banca delegata e la firma. Calcolo indicativo: verificare con il commercialista prima del pagamento.</p>
           {errore && <div className="mb-4"><Avviso tipo="errore">{errore}</Avviso></div>}
+          {avvertimento && (
+            <div className="mb-4">
+              <Avviso tipo="errore">
+                <strong>Manca un dato importante: il modello F24 non sarebbe completo o corretto.</strong> Ricontrolla e completa i dati indicati in alto
+                ({f.mancanti.length} {f.mancanti.length === 1 ? 'problema' : 'problemi'}), poi riapri questa finestra.
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Bottone variante="secondario" piccolo onClick={() => setAvvertimento(false)}>Ricontrollo i dati</Bottone>
+                  <Bottone variante="ghost" piccolo onClick={() => { setAvvertimento(false); void scarica() }}>Scarica comunque (completerò a mano)</Bottone>
+                </div>
+              </Avviso>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-divisore pt-5">
-            <Bottone disabled={generando} onClick={async () => {
-              setGenerando(true); setErrore(null)
-              try { apriOScaricaPdf(await creaF24ElidePdf(f), `F24_Elide_${(ctx.immobile?.indirizzo ?? 'immobile').replace(/[^\w]+/g, '_')}_${a.anno}.pdf`) }
-              catch (e) { setErrore('Impossibile creare il modello F24: ' + (e as Error).message) } finally { setGenerando(false) }
-            }}><FileDown size={16} /> {generando ? 'Preparazione…' : 'Scarica il modello F24 Elide compilato'}</Bottone>
+            <Bottone disabled={generando} onClick={() => (f.mancanti.length > 0 ? setAvvertimento(true) : void scarica())}>
+              <FileDown size={16} /> {generando ? 'Preparazione…' : 'Scarica il modello F24 Elide compilato'}
+            </Bottone>
             <div className="flex flex-wrap items-center gap-2.5">
               <Bottone variante="secondario" onClick={chiudi}>Chiudi</Bottone>
               {puo && !pagata && !conferma && <Bottone variante="secondario" disabled={r.tassiMancanti.length > 0 || !a.imposta_cent} onClick={() => setConferma(true)}>Segna come pagato</Bottone>}

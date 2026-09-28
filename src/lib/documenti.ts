@@ -39,7 +39,29 @@ export function contestoDi(annualitaId: string, dati: { annualita: Annualita[]; 
 /** Codice fiscale da usare in F24: il codice fiscale, oppure la partita IVA (per le società coincidono di norma). */
 export const codiceFiscaleDi = (x: { codice_fiscale?: string; partita_iva?: string } | undefined) => (x?.codice_fiscale || x?.partita_iva || '').trim().toUpperCase()
 
+/** Dato mancante o errato, con la pagina dove correggerlo. */
+export interface Problema { testo: string; percorso: string }
+
 /* ============================== F24 ============================== */
+
+/** Codice identificativo del contratto registrato: solo lettere e cifre, maiuscole (es. "TXX26T001234000XY"). */
+export const normalizzaCodiceContratto = (x: string | undefined) => (x ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+/** Vero se il codice fiscale ha un formato valido: 16 caratteri (persona) o 11 cifre (società / partita IVA). */
+export const codiceFiscaleValido = (cf: string) => /^[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/.test(cf) || /^\d{11}$/.test(cf)
+
+/**
+ * Domicilio fiscale ricavato dal campo libero "Sede legale" quando i campi dedicati sono vuoti.
+ * Riconosce "Via Roma 1, 00100 Roma (RM)", "Via Roma 1, Roma RM", "Via Roma 1 - Roma"; altrimenti usa tutto come comune.
+ */
+export function domicilioDaSede(sede: string | undefined): { comune: string; prov: string; indirizzo: string } {
+  const t = (sede ?? '').trim()
+  if (!t) return { comune: '', prov: '', indirizzo: '' }
+  const parti = t.split(/\s*[,–-]\s+/)
+  if (parti.length < 2) return { comune: t, prov: '', indirizzo: '' }
+  const ultima = parti.pop()!.replace(/^\d{5}\s+/, '')
+  const m = ultima.match(/^(.*?)[\s(]+([A-Za-z]{2})\)?$/)
+  return { indirizzo: parti.join(', '), comune: (m ? m[1] : ultima).trim(), prov: m ? m[2].toUpperCase() : '' }
+}
 
 export interface RigaF24 { tipo: string; elementi: string; codice: string; anno: number; importo_cent: number; descrizione: string }
 
@@ -71,12 +93,14 @@ export interface ContribuenteF24 {
   domicilioComune: string
   domicilioProv: string
   domicilioIndirizzo: string
+  domicilioDaSede: boolean  // vero se il domicilio è stato ricavato dal campo "Sede legale"
 }
 
 export function contribuenteDi(s: Societa | undefined): ContribuenteF24 {
   const cf = codiceFiscaleDi(s)
   const persona = s?.tipo === 'persona'
   const daCf = persona ? datiDaCodiceFiscale(cf) : null
+  const daSede = domicilioDaSede(s?.sede)
   return {
     codiceFiscale: cf, persona,
     cognomeODenominazione: ((persona ? s?.f24_cognome : '') || s?.ragione_sociale || '').toUpperCase(),
@@ -85,9 +109,10 @@ export function contribuenteDi(s: Societa | undefined): ContribuenteF24 {
     sesso: persona ? s?.f24_sesso || daCf?.sesso || '' : '',
     comuneNascita: (persona ? s?.f24_comune_nascita ?? '' : '').toUpperCase(),
     provNascita: (persona ? s?.f24_prov_nascita ?? '' : '').toUpperCase(),
-    domicilioComune: (s?.domicilio_comune ?? '').toUpperCase(),
-    domicilioProv: (s?.domicilio_prov ?? '').toUpperCase(),
-    domicilioIndirizzo: (s?.domicilio_indirizzo ?? '').toUpperCase(),
+    domicilioComune: (s?.domicilio_comune || daSede.comune).toUpperCase(),
+    domicilioProv: (s?.domicilio_prov || daSede.prov).toUpperCase(),
+    domicilioIndirizzo: (s?.domicilio_indirizzo || daSede.indirizzo).toUpperCase(),
+    domicilioDaSede: !s?.domicilio_comune && !s?.domicilio_indirizzo && !!s?.sede,
   }
 }
 
@@ -98,7 +123,7 @@ export interface DatiF24 {
   codiceIdentificativo: string   // 63 = controparte: accompagna il codice fiscale / P. IVA del coobbligato (conduttore)
   codiceContratto: string
   righe: RigaF24[]
-  mancanti: string[]
+  mancanti: Problema[]
 }
 
 /** Prospetto F24 Elide per l'annualità, con ravvedimento se `pagamento` è oltre la scadenza. */
@@ -107,24 +132,32 @@ export function preparaF24(ctx: ContestoAnnualita, pagamento: string, tassi: Rec
   const imposta = a.imposta_cent ?? 0
   const scadenza = scadenzaVersamento(a.data_inizio)
   const r = calcolaRavvedimento(imposta, scadenza, pagamento, tassi)
-  const codiceContratto = (c?.reg_codice ?? '').trim().toUpperCase()
+  const codiceContratto = normalizzaCodiceContratto(c?.reg_codice)
   const righe: RigaF24[] = [{ tipo: 'F', elementi: codiceContratto, codice: CODICE_IMPOSTA, anno: r.annoRiferimento, importo_cent: imposta, descrizione: 'Imposta di registro, annualità successiva' }]
   if (r.sanzione_cent > 0) righe.push({ tipo: 'F', elementi: codiceContratto, codice: CODICE_SANZIONE, anno: r.annoRiferimento, importo_cent: r.sanzione_cent, descrizione: 'Sanzione da ravvedimento per tardivo versamento' })
   if (r.interessi_cent > 0) righe.push({ tipo: 'F', elementi: codiceContratto, codice: CODICE_INTERESSI, anno: r.annoRiferimento, importo_cent: r.interessi_cent, descrizione: 'Interessi da ravvedimento per tardivo versamento' })
 
-  const mancanti: string[] = []
+  const mancanti: Problema[] = []
   const contribuente = contribuenteDi(s)
-  const soc = `(Anagrafiche → Società → "${s?.ragione_sociale ?? '?'}")`
-  if (!contribuente.codiceFiscale) mancanti.push(`Codice fiscale / partita IVA del proprietario ${soc}`)
-  if (!contribuente.domicilioComune || !contribuente.domicilioIndirizzo) mancanti.push(`Domicilio fiscale (comune, provincia, via) nei "Dati per il modello F24" ${soc}`)
-  if (contribuente.persona && (!s?.f24_cognome || !s?.f24_nome)) mancanti.push(`Cognome e nome separati del proprietario persona fisica ${soc}`)
-  if (contribuente.persona && !contribuente.comuneNascita) mancanti.push(`Comune di nascita del proprietario persona fisica ${soc}`)
-  if (contribuente.persona && (!contribuente.dataNascita || !contribuente.sesso)) mancanti.push(`Data di nascita e sesso del proprietario (non ricavabili dal codice fiscale) ${soc}`)
-  if (!codiceFiscaleDi(k)) mancanti.push(`Codice fiscale o partita IVA del conduttore "${k?.denominazione ?? '?'}", da indicare come coobbligato (Anagrafiche → Conduttori)`)
-  if (!codiceContratto) mancanti.push('Codice identificativo del contratto registrato (Contratti → Registrazione)')
-  if (!imposta) mancanti.push("Importo dell'imposta dell'annualità (Registro annuale)")
-  if (!a.data_inizio) mancanti.push("Inizio dell'annualità (Registro annuale)")
-  if (r.tassiMancanti.length) mancanti.push(`Tasso legale dell'anno ${r.tassiMancanti.join(', ')} (Documenti → Calcolo ravvedimento)`)
+  const nomeSoc = `"${s?.ragione_sociale ?? '?'}"`
+  const aSocieta = (testo: string) => mancanti.push({ testo: `${testo} — proprietario ${nomeSoc}`, percorso: '/societa' })
+  if (!contribuente.codiceFiscale) aSocieta('Manca il codice fiscale / partita IVA del contribuente')
+  else if (!codiceFiscaleValido(contribuente.codiceFiscale)) aSocieta(`Codice fiscale del contribuente non valido ("${contribuente.codiceFiscale}"): 16 caratteri per le persone, 11 cifre per le società`)
+  if (!contribuente.cognomeODenominazione) aSocieta('Manca la denominazione o il cognome del contribuente')
+  if (!contribuente.domicilioComune) aSocieta('Manca il comune del domicilio fiscale (sezione "Dati per il modello F24" o "Sede legale")')
+  if (!contribuente.domicilioIndirizzo) aSocieta('Manca via e numero civico del domicilio fiscale (sezione "Dati per il modello F24")')
+  if (!contribuente.domicilioProv) aSocieta('Manca la provincia del domicilio fiscale (sezione "Dati per il modello F24")')
+  if (contribuente.persona && (!s?.f24_cognome || !s?.f24_nome)) aSocieta('Mancano cognome e nome separati del contribuente persona fisica')
+  if (contribuente.persona && !contribuente.comuneNascita) aSocieta('Manca il comune di nascita del contribuente persona fisica')
+  if (contribuente.persona && (!contribuente.dataNascita || !contribuente.sesso)) aSocieta('Mancano data di nascita e sesso del contribuente (non ricavabili dal codice fiscale)')
+  const cfConduttore = codiceFiscaleDi(k)
+  if (!cfConduttore) mancanti.push({ testo: `Manca il codice fiscale o la partita IVA del conduttore "${k?.denominazione ?? '?'}" (coobbligato, codice 63)`, percorso: '/conduttori' })
+  else if (!codiceFiscaleValido(cfConduttore)) mancanti.push({ testo: `Codice fiscale del conduttore non valido ("${cfConduttore}")`, percorso: '/conduttori' })
+  if (!codiceContratto) mancanti.push({ testo: 'Manca il codice identificativo del contratto di locazione (va negli "elementi identificativi"): compilarlo nella scheda del contratto, sezione Registrazione', percorso: '/contratti' })
+  else if (codiceContratto.length !== 17) mancanti.push({ testo: `Il codice identificativo del contratto "${codiceContratto}" ha ${codiceContratto.length} caratteri invece di 17 (es. TXX26T001234000XY): ricontrollarlo sulla ricevuta di registrazione`, percorso: '/contratti' })
+  if (!imposta) mancanti.push({ testo: "Manca l'importo dell'imposta dell'annualità", percorso: '/registro' })
+  if (!a.data_inizio) mancanti.push({ testo: "Manca l'inizio dell'annualità", percorso: '/registro' })
+  if (r.tassiMancanti.length) mancanti.push({ testo: `Manca il tasso legale dell'anno ${r.tassiMancanti.join(', ')}`, percorso: '/comunicazioni' })
 
   return {
     ravvedimento: r,
@@ -150,7 +183,7 @@ export interface DatiLetteraIstat {
   testoMail: string
   emailConduttore: string
   pecConduttore: string
-  mancanti: string[]
+  mancanti: Problema[]
 }
 
 /** Testi della lettera di aggiornamento ISTAT (stampa) e della mail da copiare. */
@@ -191,12 +224,12 @@ export function preparaLetteraIstat(ctx: ContestoAnnualita): DatiLetteraIstat {
     s?.ragione_sociale ?? '',
   ].join('\n')
 
-  const mancanti: string[] = []
-  if (a.istat_indice_percento == null) mancanti.push("Variazione dell'indice ISTAT nell'annualità (Registro annuale)")
-  if (a.canone_mensile_nuovo_cent == null || a.canone_mensile_precedente_cent == null) mancanti.push("Canone mensile prima e dopo l'ISTAT nell'annualità (Registro annuale)")
-  if (!k?.indirizzo) mancanti.push(`Indirizzo del conduttore "${k?.denominazione ?? '?'}" (Anagrafiche → Conduttori)`)
-  if (!k?.email && !k?.pec) mancanti.push(`Email o PEC del conduttore "${k?.denominazione ?? '?'}" per l'invio (Anagrafiche → Conduttori)`)
-  if (!c?.istat_mese) mancanti.push('Mese di riferimento dell’indice ISTAT (Contratti → Aggiornamento ISTAT)')
+  const mancanti: Problema[] = []
+  if (a.istat_indice_percento == null) mancanti.push({ testo: "Manca la variazione dell'indice ISTAT nell'annualità", percorso: '/registro' })
+  if (a.canone_mensile_nuovo_cent == null || a.canone_mensile_precedente_cent == null) mancanti.push({ testo: "Manca il canone mensile prima e dopo l'ISTAT nell'annualità", percorso: '/registro' })
+  if (!k?.indirizzo) mancanti.push({ testo: `Manca l'indirizzo del conduttore "${k?.denominazione ?? '?'}"`, percorso: '/conduttori' })
+  if (!k?.email && !k?.pec) mancanti.push({ testo: `Mancano email e PEC del conduttore "${k?.denominazione ?? '?'}" per l'invio`, percorso: '/conduttori' })
+  if (!c?.istat_mese) mancanti.push({ testo: 'Manca il mese di riferimento dell’indice ISTAT (scheda del contratto, Aggiornamento ISTAT)', percorso: '/contratti' })
 
   return {
     oggetto,
