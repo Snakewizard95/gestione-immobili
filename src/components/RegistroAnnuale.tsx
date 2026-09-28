@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useSessioneAttiva } from '../lib/sessione'
 import { aggiorna, attivi, campiModifica, campiNuovo } from '../lib/store'
-import { SI_NO, TIPOLOGIE_CONTRATTO, etichettaDi, statoIva, type Allegato, type Annualita, type Contratto, type Opzione } from '../lib/tipi'
+import { SI_NO, TIPOLOGIE_CONTRATTO, etichettaDi, inCedolare, statoIva, type Allegato, type Annualita, type Conduttore, type Contratto, type Immobile, type Opzione, type Societa } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaData, formattaEuro } from '../lib/utils/formato'
 import Allegati from './Allegati'
@@ -46,6 +46,7 @@ function calcolaImposta(v: Partial<Annualita>): Partial<Annualita> {
 }
 
 function creaDerivati(contratto: Contratto) {
+  const cedolare = inCedolare(contratto)
   return (v: Partial<Annualita>, campo: string): Partial<Annualita> => {
     let out: Partial<Annualita> = {}
     if (campo === 'anno') out.data_inizio = inizioAnnualita(contratto, v.anno)
@@ -66,6 +67,7 @@ function creaDerivati(contratto: Contratto) {
       out = { ...out, aumento_mensile_cent: aumento, aumento_cent: aumento * 12, canone_nuovo_cent: v.canone_mensile_nuovo_cent * 12 }
     }
     const cambiaCanone = out.canone_nuovo_cent != null
+    if (cedolare) return out // cedolare secca: l'imposta resta a zero
     if (cambiaCanone || campo === 'imposta_percento' || campo === 'base_imponibile_percento') out = { ...out, ...calcolaImposta({ ...v, ...out }) }
     if (campo === 'imposta_cent' && v.imposta_cent != null) out.quota_conduttore_cent = r0(v.imposta_cent / 2)
     return out
@@ -79,7 +81,8 @@ interface Props {
 
 export default function RegistroAnnuale({ contratto, descrizione }: Props) {
   const { token, nome } = useSessioneAttiva()
-  const { dati } = useCollezioni(['annualita', 'allegati'])
+  const { dati } = useCollezioni(['annualita', 'allegati', 'immobili', 'societa', 'conduttori'])
+  const cedolare = inCedolare(contratto)
   const [aperta, setAperta] = useState<Partial<Annualita> | null>(null)
 
   const righe = attivi(dati<Annualita>('annualita')).filter((a) => a.contratto_id === contratto.id).sort((a, b) => a.anno - b.anno)
@@ -99,10 +102,14 @@ export default function RegistroAnnuale({ contratto, descrizione }: Props) {
       imposta_pagata: 'no', imposta_data_pagamento: '', imposta_modalita: 'f24_elide',
       quota_conduttore_cent: null, rimborso_ricevuto: 'no', rimborso_data: '', note: '',
     }
+    if (cedolare) {
+      // Cedolare secca: imposta non dovuta, nessun rimborso, ISTAT non applicabile
+      return { ...base, istat_applicato: 'no', imposta_percento: 0, imposta_cent: 0, quota_conduttore_cent: 0, imposta_modalita: '', note: 'Cedolare secca: imposta di registro non dovuta' }
+    }
     return { ...base, ...calcolaImposta(base) }
   }
 
-  const campi: CampoDef<Annualita>[] = [
+  const tuttiICampi: CampoDef<Annualita>[] = [
     { nome: 'anno', etichetta: 'Anno da pagare', tipo: 'numero', obbligatorio: true, aiuto: 'Cambiando l’anno, l’inizio annualità si aggiorna da solo' },
     { nome: 'data_inizio', etichetta: 'Inizio annualità', tipo: 'data', aiuto: contratto.data_decorrenza ? `Decorrenza del contratto: ${formattaData(contratto.data_decorrenza)}` : 'Il contratto non ha la decorrenza: inserirla nella scheda Dati' },
     { nome: 'istat_applicato', etichetta: 'Aggiornamento ISTAT applicato', tipo: 'select', opzioni: SI_NO, sezione: 'Aggiornamento ISTAT' },
@@ -125,6 +132,10 @@ export default function RegistroAnnuale({ contratto, descrizione }: Props) {
     { nome: 'rimborso_data', etichetta: 'Data rimborso', tipo: 'data' },
     { nome: 'note', etichetta: 'Note', tipo: 'textarea' },
   ]
+  const CAMPI_IMPOSTA = ['imposta_percento', 'base_imponibile_percento', 'imposta_cent', 'imposta_pagata', 'imposta_data_pagamento', 'imposta_modalita', 'quota_conduttore_cent', 'rimborso_ricevuto', 'rimborso_data']
+  const campi = cedolare
+    ? tuttiICampi.filter((c) => !CAMPI_IMPOSTA.includes(c.nome)).map((c) => (c.nome === 'note' ? { ...c, sezione: 'Note' } : c))
+    : tuttiICampi
 
   async function salva(v: Partial<Annualita>) {
     const esistente = !!v.id
@@ -134,7 +145,7 @@ export default function RegistroAnnuale({ contratto, descrizione }: Props) {
     `${nome}: ${esistente ? 'modifica' : 'nuova'} annualità ${v.anno} di ${descrizione}`)
     if (v.aggiorna_canone === 'si' && v.canone_mensile_nuovo_cent != null && v.canone_mensile_nuovo_cent !== contratto.canone_mensile_cent) {
       await aggiorna<Contratto>(token, 'contratti', (r) => r.map((c) => (c.id === contratto.id
-        ? { ...c, canone_mensile_cent: v.canone_mensile_nuovo_cent!, canone_annuale_cent: v.canone_mensile_nuovo_cent! * 12, imposta_registro_annuale_cent: v.quota_conduttore_cent ?? c.imposta_registro_annuale_cent, ...campiModifica(nome) }
+        ? { ...c, canone_mensile_cent: v.canone_mensile_nuovo_cent!, canone_annuale_cent: v.canone_mensile_nuovo_cent! * 12, imposta_registro_annuale_cent: cedolare ? c.imposta_registro_annuale_cent : v.quota_conduttore_cent ?? c.imposta_registro_annuale_cent, ...campiModifica(nome) }
         : c)), `${nome}: aggiorna canone ${descrizione} (ISTAT ${v.anno})`)
     }
     setAperta(null)
@@ -147,6 +158,12 @@ export default function RegistroAnnuale({ contratto, descrizione }: Props) {
     setAperta(null)
   }
 
+  // Controllo: la cedolare secca vale solo tra persone fisiche (verifica sul campo "Tipo" delle anagrafiche)
+  const imm = attivi(dati<Immobile>('immobili')).find((i) => i.id === contratto.immobile_id)
+  const locatore = attivi(dati<Societa>('societa')).find((x) => x.id === imm?.societa_id)
+  const conduttore = attivi(dati<Conduttore>('conduttori')).find((x) => x.id === contratto.conduttore_id)
+  const nonPersone = [locatore && locatore.tipo !== 'persona' ? `il proprietario "${locatore.ragione_sociale}"` : '', conduttore && conduttore.tipo !== 'persona' ? `il conduttore "${conduttore.denominazione}"` : ''].filter(Boolean)
+
   const nAllegati = (id: string) => attivi(dati<Allegato>('allegati')).filter((a) => a.collezione === 'annualita' && a.record_id === id).length
 
   return (
@@ -155,12 +172,19 @@ export default function RegistroAnnuale({ contratto, descrizione }: Props) {
         <Etichetta tono={statoIva(contratto).tono}>{statoIva(contratto).testo}</Etichetta>
         <Etichetta>{etichettaDi(TIPOLOGIE_CONTRATTO, contratto.tipologia)}</Etichetta>
         <span className="text-neutro-700">Decorrenza {formattaData(contratto.data_decorrenza)} · canone mensile {formattaEuro(contratto.canone_mensile_cent)}</span>
-        {statoIva(contratto).soggetto && <span className="text-neutro-700">· imposta di registro proposta all'1% (locatore IVA, uso diverso)</span>}
+        {cedolare && <Etichetta tono="verde">Cedolare secca</Etichetta>}
+        {statoIva(contratto).soggetto && !cedolare && <span className="text-neutro-700">· imposta di registro proposta all'1% (locatore IVA, uso diverso)</span>}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-neutro-700">Una riga per ogni annualità: ISTAT sul canone mensile, imposta di registro pagata e rimborso del conduttore, con le ricevute allegate.</p>
         <SoloSeModifica><Bottone onClick={() => setAperta(nuova())}><Plus size={16} /> Aggiungi annualità</Bottone></SoloSeModifica>
       </div>
+      {cedolare && (
+        <div className="mt-3 flex flex-col gap-2">
+          <Avviso tipo="ok">Contratto in <strong>cedolare secca</strong>: l'imposta di registro annuale non è dovuta e non c'è rimborso del 50% da chiedere al conduttore. Tutte le annualità risultano in regola.</Avviso>
+          {nonPersone.length > 0 && <Avviso tipo="attenzione">La cedolare secca è possibile solo tra persone fisiche, ma {nonPersone.join(' e ')} {nonPersone.length > 1 ? 'risultano' : 'risulta'} di tipo "Società" nelle anagrafiche. Se si tratta di una persona fisica, correggi il campo "Tipo" in Anagrafiche; altrimenti togli la cedolare secca dal contratto.</Avviso>}
+        </div>
+      )}
       {!contratto.data_decorrenza && <div className="mt-3"><Avviso tipo="attenzione">Il contratto non ha la data di decorrenza: inseriscila nella scheda Dati e l'inizio di ogni annualità verrà compilato da solo.</Avviso></div>}
       <div className="mt-4">
         <Tabella<Annualita> righe={righe} onRiga={(r) => setAperta(r)} vuoto="Nessuna annualità registrata. Premi “Aggiungi annualità” per la prima." colonne={[
@@ -170,9 +194,9 @@ export default function RegistroAnnuale({ contratto, descrizione }: Props) {
           { chiave: 'mp', etichetta: 'Mensile prima', allinea: 'dx', render: (a) => formattaEuro(a.canone_mensile_precedente_cent) },
           { chiave: 'md', etichetta: 'Mensile dopo', allinea: 'dx', render: (a) => <span className="font-medium">{formattaEuro(a.canone_mensile_nuovo_cent)}</span> },
           { chiave: 'an', etichetta: 'Annuo dopo', allinea: 'dx', render: (a) => <span className="text-neutro-700">{formattaEuro(a.canone_nuovo_cent)}</span> },
-          { chiave: 'imp', etichetta: 'Imposta registro', allinea: 'dx', render: (a) => formattaEuro(a.imposta_cent) },
-          { chiave: 'pag', etichetta: 'Pagata', render: (a) => a.imposta_pagata === 'si' ? <Etichetta tono="verde">Sì · {formattaData(a.imposta_data_pagamento)}</Etichetta> : <Etichetta tono="rosso">No</Etichetta> },
-          { chiave: 'rim', etichetta: 'Rimborso 50%', render: (a) => a.rimborso_ricevuto === 'si' ? <Etichetta tono="verde">{formattaEuro(a.quota_conduttore_cent)} · {formattaData(a.rimborso_data)}</Etichetta> : <Etichetta tono="giallo">Da incassare {formattaEuro(a.quota_conduttore_cent)}</Etichetta> },
+          { chiave: 'imp', etichetta: 'Imposta registro', allinea: 'dx', render: (a) => cedolare ? '—' : formattaEuro(a.imposta_cent) },
+          { chiave: 'pag', etichetta: 'Pagata', render: (a) => cedolare ? <Etichetta tono="grigio">Non dovuta</Etichetta> : a.imposta_pagata === 'si' ? <Etichetta tono="verde">Sì · {formattaData(a.imposta_data_pagamento)}</Etichetta> : <Etichetta tono="rosso">No</Etichetta> },
+          { chiave: 'rim', etichetta: 'Rimborso 50%', render: (a) => cedolare ? <Etichetta tono="grigio">Non dovuto</Etichetta> : a.rimborso_ricevuto === 'si' ? <Etichetta tono="verde">{formattaEuro(a.quota_conduttore_cent)} · {formattaData(a.rimborso_data)}</Etichetta> : <Etichetta tono="giallo">Da incassare {formattaEuro(a.quota_conduttore_cent)}</Etichetta> },
           { chiave: 'all', etichetta: 'Allegati', allinea: 'dx', render: (a) => nAllegati(a.id) || '—' },
         ]} />
       </div>

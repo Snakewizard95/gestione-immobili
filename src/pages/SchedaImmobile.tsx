@@ -11,7 +11,7 @@ import logo from '../assets/logo-gruppo.png'
 import { canoneMensilePer, canoneScaduto, descriviCanone, totaliAnnoContratto } from '../lib/canone'
 import { attivi } from '../lib/store'
 import {
-  A_CARICO, MODALITA_REGISTRAZIONE, PERIODICITA, STATI_PIANO, TIPI_VOCE_CONDOMINIO, TIPOLOGIE_CONTRATTO, TIPOLOGIE_IMMOBILE, etichettaDi, statoIva,
+  A_CARICO, MODALITA_REGISTRAZIONE, impostaDaPagare, inCedolare, rimborsoDaIncassare, PERIODICITA, STATI_PIANO, TIPI_VOCE_CONDOMINIO, TIPOLOGIE_CONTRATTO, TIPOLOGIE_IMMOBILE, etichettaDi, statoIva,
   type Allegato, type Annualita, type Condominio, type Conduttore, type Contratto, type Immobile, type Movimento, type PianoRientro, type Societa, type VoceCondominiale,
 } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
@@ -81,8 +81,8 @@ export default function SchedaImmobile() {
   const vociNonPagate = voci.filter((v) => v.pagata !== 'si')
   const scaduto = somma(vociNonPagate.filter((v) => !v.in_piano_id && v.scadenza && v.scadenza < oggi).map((v) => v.importo_cent))
   const daRiaddebitare = somma(voci.filter((v) => (v.quota_conduttore_cent ?? 0) > 0 && v.riaddebitata !== 'si').map((v) => v.quota_conduttore_cent))
-  const impostaNonPagata = annAttivo.filter((a) => a.imposta_pagata !== 'si')
-  const rimborsiMancanti = annAttivo.filter((a) => a.rimborso_ricevuto !== 'si' && (a.quota_conduttore_cent ?? 0) > 0)
+  const impostaNonPagata = annAttivo.filter((a) => impostaDaPagare(a, attivo))
+  const rimborsiMancanti = annAttivo.filter((a) => rimborsoDaIncassare(a, attivo))
 
   return (
     <div className="min-h-screen bg-sfondo print:bg-white">
@@ -110,7 +110,7 @@ export default function SchedaImmobile() {
         <div className="mt-5 grid gap-2 text-xs sm:grid-cols-4">
           {[
             ['Canoni ' + anno, `${formattaEuro(incassatoAnno)} su ${formattaEuro(dovutoAnno)}`, insolutiMesi.length ? `${insolutiMesi.length} mesi non incassati` : 'in regola', insolutiMesi.length > 0],
-            ['Imposta di registro', impostaNonPagata.length ? `${impostaNonPagata.length} annualità non pagate` : 'in regola', rimborsiMancanti.length ? `${rimborsiMancanti.length} rimborsi 50% da incassare` : '', impostaNonPagata.length > 0],
+            ['Imposta di registro', inCedolare(attivo) ? 'cedolare secca: non dovuta' : impostaNonPagata.length ? `${impostaNonPagata.length} annualità non pagate` : 'in regola', rimborsiMancanti.length ? `${rimborsiMancanti.length} rimborsi 50% da incassare` : '', impostaNonPagata.length > 0],
             ['Condominio', vociNonPagate.length ? `${formattaEuro(somma(vociNonPagate.map((v) => v.importo_cent)))} da pagare` : 'in regola', scaduto > 0 ? `di cui scaduto ${formattaEuro(scaduto)}` : '', scaduto > 0],
             ['Da incassare dal conduttore', formattaEuro(daRiaddebitare + somma(rimborsiMancanti.map((a) => a.quota_conduttore_cent))), 'spese condominiali + imposta di registro', false],
           ].map(([t, v, s, critico]) => (
@@ -140,7 +140,7 @@ export default function SchedaImmobile() {
               ['Deposito cauzionale', attivo.deposito_cent ? `${formattaEuro(attivo.deposito_cent)}${attivo.deposito_modalita ? ' (' + attivo.deposito_modalita + ')' : ''}` : ''], ['Deposito restituito il', formattaData(attivo.deposito_restituito_il)],
               ['ISTAT', attivo.istat_attivo === 'si' ? `Sì, ${attivo.istat_percentuale ?? 75}%` : 'No'], ['Incassi gestiti da noi', attivo.gestione_incassi === 'no' ? 'No' : 'Sì'],
               ['Registrazione', [attivo.reg_data && formattaData(attivo.reg_data), attivo.reg_ufficio, attivo.reg_modalita && etichettaDi(MODALITA_REGISTRAZIONE, attivo.reg_modalita)].filter(Boolean).join(' · ')], ['Codice identificativo', attivo.reg_codice],
-              ['Imposta prima registrazione', attivo.reg_imposta_cent ? `${formattaEuro(attivo.reg_imposta_cent)}${attivo.reg_quota_conduttore_cent ? ' (conduttore ' + formattaEuro(attivo.reg_quota_conduttore_cent) + ')' : ''}` : ''], ['Note', attivo.note]]} colonne={2} />
+              ['Cedolare secca', inCedolare(attivo) ? 'Sì (imposta di registro non dovuta)' : ''], ['Imposta prima registrazione', attivo.reg_imposta_cent ? `${formattaEuro(attivo.reg_imposta_cent)}${attivo.reg_quota_conduttore_cent ? ' (conduttore ' + formattaEuro(attivo.reg_quota_conduttore_cent) + ')' : ''}` : ''], ['Note', attivo.note]]} colonne={2} />
           ) })() : <p className="text-xs text-neutro-700">Nessun contratto attivo: immobile {imm.stato === 'libero' ? 'libero' : 'senza contratto registrato'}.</p>}
         </Sezione>
         </div>
@@ -148,7 +148,7 @@ export default function SchedaImmobile() {
         {attivo && (
           <Sezione titolo="Registro annuale: ISTAT e imposta di registro">
             <Tab intestazioni={['Anno', 'Inizio', 'ISTAT', 'Mensile prima', 'Mensile dopo', 'Imposta', 'Pagata', 'Rimborso 50%']} dx={[3, 4, 5]}
-              righe={annAttivo.map((a) => [a.anno, formattaData(a.data_inizio), a.istat_applicato === 'si' && a.istat_indice_percento != null ? `${String(a.istat_indice_percento).replace('.', ',')}% (${a.istat_quota_percento ?? 100}%)` : '—', formattaEuro(a.canone_mensile_precedente_cent), formattaEuro(a.canone_mensile_nuovo_cent), formattaEuro(a.imposta_cent), a.imposta_pagata === 'si' ? `Sì ${formattaData(a.imposta_data_pagamento)}` : <span className="font-medium text-err-testo">No</span>, a.rimborso_ricevuto === 'si' ? `${formattaEuro(a.quota_conduttore_cent)} il ${formattaData(a.rimborso_data)}` : <span className="text-att-testo">da incassare {formattaEuro(a.quota_conduttore_cent)}</span>])} />
+              righe={annAttivo.map((a) => [a.anno, formattaData(a.data_inizio), a.istat_applicato === 'si' && a.istat_indice_percento != null ? `${String(a.istat_indice_percento).replace('.', ',')}% (${a.istat_quota_percento ?? 100}%)` : '—', formattaEuro(a.canone_mensile_precedente_cent), formattaEuro(a.canone_mensile_nuovo_cent), inCedolare(attivo) ? '—' : formattaEuro(a.imposta_cent), inCedolare(attivo) ? 'Non dovuta' : a.imposta_pagata === 'si' ? `Sì ${formattaData(a.imposta_data_pagamento)}` : <span className="font-medium text-err-testo">No</span>, inCedolare(attivo) ? 'Non dovuto' : a.rimborso_ricevuto === 'si' ? `${formattaEuro(a.quota_conduttore_cent)} il ${formattaData(a.rimborso_data)}` : <span className="text-att-testo">da incassare {formattaEuro(a.quota_conduttore_cent)}</span>])} />
           </Sezione>
         )}
 

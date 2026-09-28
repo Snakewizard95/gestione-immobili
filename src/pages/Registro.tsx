@@ -10,12 +10,12 @@ import { scaricaExcel } from '../lib/esporta'
 import RegistroAnnuale from '../components/RegistroAnnuale'
 import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Gruppo, IntestazionePagina, Riquadro, Segmentato, Tabella, filtraTesto } from '../components/ui'
 import { attivi } from '../lib/store'
-import { TIPOLOGIE_CONTRATTO, etichettaDi, statoIva, type Annualita, type Conduttore, type Contratto, type Immobile, type Societa } from '../lib/tipi'
+import { TIPOLOGIE_CONTRATTO, etichettaDi, impostaDaPagare, inCedolare, rimborsoDaIncassare, statoIva, type Annualita, type Conduttore, type Contratto, type Immobile, type Societa } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaData, formattaEuro } from '../lib/utils/formato'
 
 type RigaContratto = Contratto & { societa: string; immobile: string; conduttore: string; nAnnualita: number; ultimoAnno: number | null; daPagare: number }
-type RigaAnnualita = Annualita & { societa: string; immobile: string; conduttore: string }
+type RigaAnnualita = Annualita & { societa: string; immobile: string; conduttore: string; cedolare: boolean; contratto: Contratto | undefined }
 
 function Promemoria() {
   const [aperto, setAperto] = useState(false)
@@ -71,21 +71,21 @@ export default function PaginaRegistro() {
   const righeContratti: RigaContratto[] = filtraTesto(
     contratti.filter((c) => c.stato !== 'cessato').map((c) => {
       const mie = annualita.filter((a) => a.contratto_id === c.id)
-      return { ...c, ...descrivi(c), nAnnualita: mie.length, ultimoAnno: mie.length ? Math.max(...mie.map((a) => a.anno)) : null, daPagare: mie.filter((a) => a.imposta_pagata !== 'si').length }
+      return { ...c, ...descrivi(c), nAnnualita: mie.length, ultimoAnno: mie.length ? Math.max(...mie.map((a) => a.anno)) : null, daPagare: mie.filter((a) => impostaDaPagare(a, c)).length }
     }), ricerca)
   const perSocietaC = raggruppa(righeContratti, (r) => r.societa)
 
   // Scheda 2: annualità registrate
   const righeAnnualita: RigaAnnualita[] = filtraTesto(annualita.map((a) => {
     const c = contratti.find((x) => x.id === a.contratto_id)
-    return { ...a, ...(c ? descrivi(c) : { societa: '—', immobile: '—', conduttore: '—' }) }
+    return { ...a, ...(c ? descrivi(c) : { societa: '—', immobile: '—', conduttore: '—' }), cedolare: inCedolare(c), contratto: c }
   }), ricerca)
     .filter((a) => !anno || String(a.anno) === anno)
-    .filter((a) => filtro === 'tutte' || (filtro === 'imposta_no' ? a.imposta_pagata !== 'si' : a.rimborso_ricevuto !== 'si'))
+    .filter((a) => filtro === 'tutte' || (filtro === 'imposta_no' ? impostaDaPagare(a, a.contratto) : !a.cedolare && a.rimborso_ricevuto !== 'si'))
   const anni = [...new Set(annualita.map((a) => a.anno))].sort((a, b) => b - a)
   const perSocietaA = raggruppa(righeAnnualita, (r) => r.societa)
-  const totDaRimborsare = righeAnnualita.filter((a) => a.rimborso_ricevuto !== 'si').reduce((s, a) => s + (a.quota_conduttore_cent ?? 0), 0)
-  const totNonPagata = righeAnnualita.filter((a) => a.imposta_pagata !== 'si').reduce((s, a) => s + (a.imposta_cent ?? 0), 0)
+  const totDaRimborsare = righeAnnualita.filter((a) => rimborsoDaIncassare(a, a.contratto)).reduce((s, a) => s + (a.quota_conduttore_cent ?? 0), 0)
+  const totNonPagata = righeAnnualita.filter((a) => impostaDaPagare(a, a.contratto)).reduce((s, a) => s + (a.imposta_cent ?? 0), 0)
 
   const sel = 'input w-auto'
   const apri = (id: string) => setContrattoAperto(contratti.find((c) => c.id === id) ?? null)
@@ -98,7 +98,7 @@ export default function PaginaRegistro() {
     { chiave: 'dec', etichetta: 'Decorrenza', render: (r: RigaContratto) => formattaData(r.data_decorrenza) },
     { chiave: 'men', etichetta: 'Canone mensile', allinea: 'dx' as const, render: (r: RigaContratto) => formattaEuro(r.canone_mensile_cent) },
     { chiave: 'ann', etichetta: 'Annualità registrate', allinea: 'dx' as const, render: (r: RigaContratto) => r.nAnnualita ? `${r.nAnnualita} (ultima ${r.ultimoAnno})` : <span className="text-neutro-500">nessuna</span> },
-    { chiave: 'st', etichetta: 'Stato', render: (r: RigaContratto) => r.daPagare > 0 ? <Etichetta tono="rosso">{r.daPagare} imposta da pagare</Etichetta> : r.ultimoAnno !== null && r.ultimoAnno >= annoCorrente ? <Etichetta tono="verde">In regola {r.ultimoAnno}</Etichetta> : <Etichetta tono="giallo">Da registrare {annoCorrente}</Etichetta> },
+    { chiave: 'st', etichetta: 'Stato', render: (r: RigaContratto) => inCedolare(r) ? <Etichetta tono="verde">Cedolare secca · in regola</Etichetta> : r.daPagare > 0 ? <Etichetta tono="rosso">{r.daPagare} imposta da pagare</Etichetta> : r.ultimoAnno !== null && r.ultimoAnno >= annoCorrente ? <Etichetta tono="verde">In regola {r.ultimoAnno}</Etichetta> : <Etichetta tono="giallo">Da registrare {annoCorrente}</Etichetta> },
   ]
   const colonneAnnualita = [
     { chiave: 'anno', etichetta: 'Anno', render: (a: RigaAnnualita) => <span className="num font-titolo text-[17px] font-semibold">{a.anno}</span> },
@@ -108,9 +108,9 @@ export default function PaginaRegistro() {
     { chiave: 'mp', etichetta: 'Mensile prima', allinea: 'dx' as const, render: (a: RigaAnnualita) => <span className="text-neutro-700">{formattaEuro(a.canone_mensile_precedente_cent)}</span> },
     { chiave: 'md', etichetta: 'Mensile dopo', allinea: 'dx' as const, render: (a: RigaAnnualita) => <span className="font-medium">{formattaEuro(a.canone_mensile_nuovo_cent)}</span> },
     { chiave: 'an', etichetta: 'Annuo dopo', allinea: 'dx' as const, render: (a: RigaAnnualita) => <span className="text-neutro-700">{formattaEuro(a.canone_nuovo_cent)}</span> },
-    { chiave: 'imp', etichetta: 'Imposta', allinea: 'dx' as const, render: (a: RigaAnnualita) => formattaEuro(a.imposta_cent) },
-    { chiave: 'pag', etichetta: 'Pagata', render: (a: RigaAnnualita) => a.imposta_pagata === 'si' ? <Etichetta tono="verde">{formattaData(a.imposta_data_pagamento)}</Etichetta> : <Etichetta tono="rosso">No</Etichetta> },
-    { chiave: 'rim', etichetta: 'Rimborso 50%', render: (a: RigaAnnualita) => a.rimborso_ricevuto === 'si' ? <Etichetta tono="verde">{formattaData(a.rimborso_data)}</Etichetta> : <Etichetta tono="giallo">Da incassare</Etichetta> },
+    { chiave: 'imp', etichetta: 'Imposta', allinea: 'dx' as const, render: (a: RigaAnnualita) => a.cedolare ? '—' : formattaEuro(a.imposta_cent) },
+    { chiave: 'pag', etichetta: 'Pagata', render: (a: RigaAnnualita) => a.cedolare ? <Etichetta tono="grigio">Non dovuta</Etichetta> : a.imposta_pagata === 'si' ? <Etichetta tono="verde">{formattaData(a.imposta_data_pagamento)}</Etichetta> : <Etichetta tono="rosso">No</Etichetta> },
+    { chiave: 'rim', etichetta: 'Rimborso 50%', render: (a: RigaAnnualita) => a.cedolare ? <Etichetta tono="grigio">Non dovuto</Etichetta> : a.rimborso_ricevuto === 'si' ? <Etichetta tono="verde">{formattaData(a.rimborso_data)}</Etichetta> : <Etichetta tono="giallo">Da incassare</Etichetta> },
   ]
 
   return (
@@ -118,8 +118,8 @@ export default function PaginaRegistro() {
       <IntestazionePagina kicker="Adempimenti" titolo="ISTAT e imposta di registro"
         sottotitolo="Registro storico, anno per anno, di aggiornamenti ISTAT, imposta di registro e rimborsi dei conduttori."
         azioni={<Bottone variante="secondario" onClick={() => scaricaExcel('ISTAT_imposta_registro', [
-          { nome: 'Annualità', righe: righeAnnualita.map((a) => ({ 'Anno': a.anno, 'Società': a.societa, 'Immobile': a.immobile, 'Conduttore': a.conduttore, 'Inizio annualità': formattaData(a.data_inizio), 'ISTAT applicato': a.istat_applicato === 'si' ? 'Sì' : 'No', 'Indice ISTAT %': a.istat_indice_percento ?? '', 'Quota %': a.istat_quota_percento ?? '', 'Mensile prima': (a.canone_mensile_precedente_cent ?? 0) / 100, 'Mensile dopo': (a.canone_mensile_nuovo_cent ?? 0) / 100, 'Annuo dopo': (a.canone_nuovo_cent ?? 0) / 100, 'Aliquota %': a.imposta_percento ?? '', 'Base %': a.base_imponibile_percento ?? '', 'Imposta': (a.imposta_cent ?? 0) / 100, 'Pagata': a.imposta_pagata === 'si' ? 'Sì' : 'No', 'Data pagamento': formattaData(a.imposta_data_pagamento), 'Quota conduttore': (a.quota_conduttore_cent ?? 0) / 100, 'Rimborso ricevuto': a.rimborso_ricevuto === 'si' ? 'Sì' : 'No', 'Data rimborso': formattaData(a.rimborso_data), 'Note': a.note })) },
-          { nome: 'Contratti', righe: righeContratti.map((r) => ({ 'Società': r.societa, 'Immobile': r.immobile, 'Conduttore': r.conduttore, 'Tipo': etichettaDi(TIPOLOGIE_CONTRATTO, r.tipologia), 'IVA': statoIva(r).testo, 'Decorrenza': formattaData(r.data_decorrenza), 'Canone mensile': (r.canone_mensile_cent ?? 0) / 100, 'Annualità registrate': r.nAnnualita, 'Ultimo anno': r.ultimoAnno ?? '', 'Imposte da pagare': r.daPagare })) },
+          { nome: 'Annualità', righe: righeAnnualita.map((a) => ({ 'Anno': a.anno, 'Società': a.societa, 'Immobile': a.immobile, 'Conduttore': a.conduttore, 'Inizio annualità': formattaData(a.data_inizio), 'ISTAT applicato': a.istat_applicato === 'si' ? 'Sì' : 'No', 'Indice ISTAT %': a.istat_indice_percento ?? '', 'Quota %': a.istat_quota_percento ?? '', 'Mensile prima': (a.canone_mensile_precedente_cent ?? 0) / 100, 'Mensile dopo': (a.canone_mensile_nuovo_cent ?? 0) / 100, 'Annuo dopo': (a.canone_nuovo_cent ?? 0) / 100, 'Aliquota %': a.imposta_percento ?? '', 'Base %': a.base_imponibile_percento ?? '', 'Imposta': (a.imposta_cent ?? 0) / 100, 'Pagata': a.cedolare ? 'Non dovuta (cedolare secca)' : a.imposta_pagata === 'si' ? 'Sì' : 'No', 'Data pagamento': formattaData(a.imposta_data_pagamento), 'Quota conduttore': (a.quota_conduttore_cent ?? 0) / 100, 'Rimborso ricevuto': a.cedolare ? 'Non dovuto (cedolare secca)' : a.rimborso_ricevuto === 'si' ? 'Sì' : 'No', 'Data rimborso': formattaData(a.rimborso_data), 'Note': a.note })) },
+          { nome: 'Contratti', righe: righeContratti.map((r) => ({ 'Società': r.societa, 'Immobile': r.immobile, 'Conduttore': r.conduttore, 'Tipo': etichettaDi(TIPOLOGIE_CONTRATTO, r.tipologia), 'IVA': statoIva(r).testo, 'Decorrenza': formattaData(r.data_decorrenza), 'Canone mensile': (r.canone_mensile_cent ?? 0) / 100, 'Annualità registrate': r.nAnnualita, 'Ultimo anno': r.ultimoAnno ?? '', 'Cedolare secca': inCedolare(r) ? 'Sì' : 'No', 'Imposte da pagare': r.daPagare })) },
         ])}><FileSpreadsheet size={16} /> Esporta Excel</Bottone>} />
       <Promemoria />
 

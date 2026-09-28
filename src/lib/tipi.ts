@@ -114,6 +114,7 @@ export interface Contratto extends RecordBase {
   reg_imposta_cent: number | null
   reg_quota_conduttore_cent: number | null
   imposta_registro_annuale_cent: number | null
+  cedolare_secca?: string     // si | no: con la cedolare secca l'imposta di registro non è dovuta (assente nei contratti più vecchi = no)
   note: string
 }
 
@@ -175,6 +176,19 @@ export function statoIva(c: Pick<Contratto, 'regime_iva' | 'iva_percento'> | nul
   if (!c || !c.regime_iva) return { testo: 'IVA da indicare', tono: 'giallo', soggetto: false }
   if (c.regime_iva === 'con_iva') return { testo: `IVA ${c.iva_percento ?? 22}%`, tono: 'blu', soggetto: true }
   return { testo: 'No IVA', tono: 'grigio', soggetto: false }
+}
+
+/** Vero se il contratto è in cedolare secca: niente imposta di registro annuale né rimborso del 50% dal conduttore. */
+export function inCedolare(c: Pick<Contratto, 'cedolare_secca'> | null | undefined): boolean {
+  return c?.cedolare_secca === 'si'
+}
+/** Imposta di registro dell'annualità ancora da pagare (mai in cedolare secca). */
+export function impostaDaPagare(a: Pick<Annualita, 'imposta_pagata'>, c: Pick<Contratto, 'cedolare_secca'> | null | undefined): boolean {
+  return !inCedolare(c) && a.imposta_pagata !== 'si'
+}
+/** Rimborso del 50% dal conduttore ancora da incassare (mai in cedolare secca). */
+export function rimborsoDaIncassare(a: Pick<Annualita, 'rimborso_ricevuto' | 'quota_conduttore_cent'>, c: Pick<Contratto, 'cedolare_secca'> | null | undefined): boolean {
+  return !inCedolare(c) && a.rimborso_ricevuto !== 'si' && (a.quota_conduttore_cent ?? 0) > 0
 }
 
 export function etichettaDi(opzioni: Opzione[], valore: string | null | undefined): string {

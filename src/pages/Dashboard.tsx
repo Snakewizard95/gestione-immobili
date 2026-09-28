@@ -8,7 +8,7 @@ import { Avviso, Caricamento, Etichetta, Riquadro, Tabella, type TonoEtichetta }
 import { useSessioneAttiva, useUtente } from '../lib/sessione'
 import { puoVedere } from '../lib/permessi'
 import { attivi } from '../lib/store'
-import type { Annualita, Contratto, Immobile, Societa, VoceCondominiale } from '../lib/tipi'
+import { impostaDaPagare, inCedolare, rimborsoDaIncassare, type Annualita, type Contratto, type Immobile, type Societa, type VoceCondominiale } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaData, formattaEuro } from '../lib/utils/formato'
 
@@ -70,7 +70,7 @@ export default function Dashboard() {
     return {
       id: s.id, societa: s.ragione_sociale, immobili: imm.length, liberi: imm.filter((i) => i.stato === 'libero').length, contratti: con.length,
       canone_mensile: somma(con.map((c) => c.canone_mensile_cent)), canone_annuo: somma(con.map((c) => c.canone_annuale_cent)),
-      registro: somma(con.map((c) => c.imposta_registro_annuale_cent)),
+      registro: somma(con.filter((c) => !inCedolare(c)).map((c) => c.imposta_registro_annuale_cent)),
     }
   }).sort((a, b) => b.canone_annuo - a.canone_annuo)
 
@@ -105,7 +105,7 @@ export default function Dashboard() {
     if (c.prima_scadenza && c.prima_scadenza.slice(0, 7) >= primo && c.prima_scadenza.slice(0, 7) <= ultimo) {
       aggiungi(c.prima_scadenza, { tipo: 'scadenza', testo: breve(ind), titolo: `Scadenza contratto ${formattaData(c.prima_scadenza)} · ${ind}` })
     }
-    if (vedeRegistro && c.data_decorrenza) {
+    if (vedeRegistro && c.data_decorrenza && !inCedolare(c)) {
       // Anniversari della decorrenza (inizio di ogni annualità) che cadono nei prossimi 12 mesi
       for (const anno of [mesi[0].anno, mesi[0].anno + 1]) {
         if (anno <= Number(c.data_decorrenza.slice(0, 4))) continue
@@ -120,7 +120,7 @@ export default function Dashboard() {
   // ── Da fare ──
   const daFare: DaFare[] = []
   if (vedeRegistro) {
-    const nonPagate = annualita.filter((a) => a.imposta_pagata !== 'si' && (a.imposta_cent ?? 0) > 0 && a.data_inizio && a.data_inizio <= tra30)
+    const nonPagate = annualita.filter((a) => impostaDaPagare(a, contratti.find((c) => c.id === a.contratto_id)) && (a.imposta_cent ?? 0) > 0 && a.data_inizio && a.data_inizio <= tra30)
       .sort((a, b) => a.data_inizio.localeCompare(b.data_inizio))
     const contrattoDi = (a: Annualita) => contratti.find((c) => c.id === a.contratto_id)
     for (const a of nonPagate.slice(0, MAX_VOCI_REGISTRO)) {
@@ -152,7 +152,7 @@ export default function Dashboard() {
     }
   }
   if (vedeRegistro) {
-    const rimborsi = annualita.filter((a) => a.rimborso_ricevuto !== 'si' && (a.quota_conduttore_cent ?? 0) > 0 && a.data_inizio && a.data_inizio <= oggi)
+    const rimborsi = annualita.filter((a) => rimborsoDaIncassare(a, contratti.find((c) => c.id === a.contratto_id)) && a.data_inizio && a.data_inizio <= oggi)
     if (rimborsi.length > 0) {
       const conduttori = new Set(rimborsi.map((a) => contratti.find((c) => c.id === a.contratto_id)?.conduttore_id ?? a.id)).size
       daFare.push({ id: 'rimb', titolo: 'Rimborsi 50% da incassare', dettaglio: `${conduttori} ${conduttori === 1 ? 'conduttore' : 'conduttori'} · ${formattaEuro(somma(rimborsi.map((a) => a.quota_conduttore_cent)))}`, tag: 'Da incassare', tono: 'giallo' })

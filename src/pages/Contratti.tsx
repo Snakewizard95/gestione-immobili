@@ -10,7 +10,7 @@ import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Intest
 import { useSessioneAttiva } from '../lib/sessione'
 import { aggiorna, attivi, campiModifica, campiNuovo } from '../lib/store'
 import {
-  MODALITA_REGISTRAZIONE, PERIODICITA, REGIMI_IVA, SI_NO, STATI_CONTRATTO, TIPOLOGIE_CONTRATTO, etichettaDi, statoIva,
+  MODALITA_REGISTRAZIONE, PERIODICITA, inCedolare, REGIMI_IVA, SI_NO, STATI_CONTRATTO, TIPOLOGIE_CONTRATTO, etichettaDi, statoIva,
   type Conduttore, type Contratto, type Immobile, type Societa,
 } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
@@ -23,7 +23,7 @@ const VUOTO: Partial<Contratto> = {
   deposito_cent: null, deposito_modalita: '', deposito_restituito_il: '', regime_iva: '', iva_percento: 22,
   istat_attivo: 'si', istat_percentuale: 75, istat_mese: '',
   reg_data: '', reg_ufficio: '', reg_codice: '', reg_modalita: '', reg_imposta_cent: null, reg_quota_conduttore_cent: null,
-  imposta_registro_annuale_cent: null, note: '',
+  imposta_registro_annuale_cent: null, cedolare_secca: 'no', note: '',
 }
 
 /** Calcoli automatici: canone annuale da mensile (e viceversa), prima scadenza da decorrenza + durata. */
@@ -33,6 +33,12 @@ function derivati(v: Partial<Contratto>, campo: string): Partial<Contratto> {
   if (campo === 'canone_annuale_cent' && v.canone_annuale_cent != null) out.canone_mensile_cent = Math.round(v.canone_annuale_cent / 12)
   if ((campo === 'data_decorrenza' || campo === 'durata_anni') && v.data_decorrenza && v.durata_anni) {
     out.prima_scadenza = aggiungiAnni(v.data_decorrenza, v.durata_anni)
+  }
+  // Cedolare secca: niente imposta di registro, niente IVA e rinuncia all'aggiornamento ISTAT (per legge)
+  if (campo === 'cedolare_secca' && v.cedolare_secca === 'si') {
+    out.imposta_registro_annuale_cent = 0
+    out.regime_iva = 'esente'
+    out.istat_attivo = 'no'
   }
   return out
 }
@@ -89,7 +95,9 @@ export default function PaginaContratti() {
     { nome: 'istat_attivo', etichetta: 'Aggiornamento ISTAT', tipo: 'select', opzioni: SI_NO, sezione: 'Aggiornamento ISTAT', colonne: 3 },
     { nome: 'istat_percentuale', etichetta: 'Percentuale applicata (75 o 100)', tipo: 'numero' },
     { nome: 'istat_mese', etichetta: 'Mese di riferimento (es. 2026-05)', tipo: 'testo' },
-    { nome: 'reg_data', etichetta: 'Data registrazione', tipo: 'data', sezione: 'Registrazione e imposta di registro', colonne: 4 },
+    { nome: 'cedolare_secca', etichetta: 'Cedolare secca?', tipo: 'select', opzioni: SI_NO, sezione: 'Registrazione e imposta di registro', colonne: 4, doppia: true,
+      aiuto: 'Solo tra persone fisiche (locatore privato, non società). Con "Sì" l’imposta di registro annuale non è dovuta, il canone è senza IVA e l’ISTAT non si applica' },
+    { nome: 'reg_data', etichetta: 'Data registrazione', tipo: 'data' },
     { nome: 'reg_ufficio', etichetta: 'Ufficio', tipo: 'testo' },
     { nome: 'reg_codice', etichetta: 'Codice identificativo', tipo: 'testo' },
     { nome: 'reg_modalita', etichetta: 'Modalità', tipo: 'select', opzioni: MODALITA_REGISTRAZIONE },
@@ -146,7 +154,7 @@ export default function PaginaContratti() {
             { chiave: 'scad', etichetta: 'Scadenza', render: (c) => <span className="num">{formattaData(c.prima_scadenza)}</span> },
             { chiave: 'mens', etichetta: 'Canone mensile', allinea: 'dx', render: (c) => <span className="whitespace-nowrap font-medium">{formattaEuro(c.canone_mensile_cent)}</span> },
             { chiave: 'ann', etichetta: 'Canone annuale', allinea: 'dx', render: (c) => <span className="whitespace-nowrap">{formattaEuro(c.canone_annuale_cent)}</span> },
-            { chiave: 'reg', etichetta: 'Imp. registro annua', allinea: 'dx', render: (c) => <span className="whitespace-nowrap">{formattaEuro(c.imposta_registro_annuale_cent)}</span> },
+            { chiave: 'reg', etichetta: 'Imp. registro annua', allinea: 'dx', render: (c) => inCedolare(c) ? <Etichetta tono="verde">Cedolare secca</Etichetta> : <span className="whitespace-nowrap">{formattaEuro(c.imposta_registro_annuale_cent)}</span> },
             { chiave: 'iva', etichetta: 'IVA', render: (c) => { const s = statoIva(c); return <Etichetta tono={s.tono}>{s.testo}</Etichetta> } },
             { chiave: 'stato', etichetta: 'Stato', render: (c) => <Etichetta tono={tonoStato(c.stato)}>{etichettaDi(STATI_CONTRATTO, c.stato)}</Etichetta> },
             { chiave: 'az', etichetta: '', render: (c) => <Link to={`/stampa/immobile/${c.immobile_id}`} onClick={(e) => e.stopPropagation()} title="Scheda immobile (stampa / PDF)" className="btn btn-secondario btn-piccolo no-underline"><Printer size={14} /> Scheda</Link> },
