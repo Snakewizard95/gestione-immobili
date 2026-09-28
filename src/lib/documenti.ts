@@ -43,9 +43,57 @@ export const codiceFiscaleDi = (x: { codice_fiscale?: string; partita_iva?: stri
 
 export interface RigaF24 { tipo: string; elementi: string; codice: string; anno: number; importo_cent: number; descrizione: string }
 
+/** Carattere di omocodia → cifra (codice fiscale) */
+const OMOCODIA: Record<string, string> = { L: '0', M: '1', N: '2', P: '3', Q: '4', R: '5', S: '6', T: '7', U: '8', V: '9' }
+/** Data di nascita (AAAA-MM-GG) e sesso ricavati da un codice fiscale di persona fisica; null se non è un CF personale valido. */
+export function datiDaCodiceFiscale(cf: string): { dataNascita: string; sesso: 'M' | 'F' } | null {
+  const c = cf.trim().toUpperCase()
+  if (!/^[A-Z]{6}[0-9LMNPQRSTUV]{2}[ABCDEHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/.test(c)) return null
+  const n = (x: string) => Number([...x].map((ch) => OMOCODIA[ch] ?? ch).join(''))
+  const aa = n(c.slice(6, 8)), mese = 'ABCDEHLMPRST'.indexOf(c[8]) + 1
+  let gg = n(c.slice(9, 11))
+  const sesso = gg > 40 ? 'F' : 'M'
+  if (gg > 40) gg -= 40
+  const anno = aa > new Date().getFullYear() % 100 ? 1900 + aa : 2000 + aa
+  return { dataNascita: `${anno}-${String(mese).padStart(2, '0')}-${String(gg).padStart(2, '0')}`, sesso }
+}
+
+/** Dati della sezione "Contribuente" del modello F24. */
+export interface ContribuenteF24 {
+  codiceFiscale: string
+  persona: boolean
+  cognomeODenominazione: string
+  nome: string
+  dataNascita: string     // AAAA-MM-GG
+  sesso: string
+  comuneNascita: string
+  provNascita: string
+  domicilioComune: string
+  domicilioProv: string
+  domicilioIndirizzo: string
+}
+
+export function contribuenteDi(s: Societa | undefined): ContribuenteF24 {
+  const cf = codiceFiscaleDi(s)
+  const persona = s?.tipo === 'persona'
+  const daCf = persona ? datiDaCodiceFiscale(cf) : null
+  return {
+    codiceFiscale: cf, persona,
+    cognomeODenominazione: ((persona ? s?.f24_cognome : '') || s?.ragione_sociale || '').toUpperCase(),
+    nome: (persona ? s?.f24_nome ?? '' : '').toUpperCase(),
+    dataNascita: persona ? s?.f24_data_nascita || daCf?.dataNascita || '' : '',
+    sesso: persona ? s?.f24_sesso || daCf?.sesso || '' : '',
+    comuneNascita: (persona ? s?.f24_comune_nascita ?? '' : '').toUpperCase(),
+    provNascita: (persona ? s?.f24_prov_nascita ?? '' : '').toUpperCase(),
+    domicilioComune: (s?.domicilio_comune ?? '').toUpperCase(),
+    domicilioProv: (s?.domicilio_prov ?? '').toUpperCase(),
+    domicilioIndirizzo: (s?.domicilio_indirizzo ?? '').toUpperCase(),
+  }
+}
+
 export interface DatiF24 {
   ravvedimento: Ravvedimento
-  contribuente: { codiceFiscale: string; denominazione: string; domicilio: string }
+  contribuente: ContribuenteF24
   secondoCodiceFiscale: string
   codiceIdentificativo: string   // 63 = controparte: accompagna il codice fiscale / P. IVA del coobbligato (conduttore)
   codiceContratto: string
@@ -65,7 +113,13 @@ export function preparaF24(ctx: ContestoAnnualita, pagamento: string, tassi: Rec
   if (r.interessi_cent > 0) righe.push({ tipo: 'F', elementi: codiceContratto, codice: CODICE_INTERESSI, anno: r.annoRiferimento, importo_cent: r.interessi_cent, descrizione: 'Interessi da ravvedimento per tardivo versamento' })
 
   const mancanti: string[] = []
-  if (!codiceFiscaleDi(s)) mancanti.push(`Codice fiscale / partita IVA della società "${s?.ragione_sociale ?? '?'}" (Anagrafiche → Società)`)
+  const contribuente = contribuenteDi(s)
+  const soc = `(Anagrafiche → Società → "${s?.ragione_sociale ?? '?'}")`
+  if (!contribuente.codiceFiscale) mancanti.push(`Codice fiscale / partita IVA del proprietario ${soc}`)
+  if (!contribuente.domicilioComune || !contribuente.domicilioIndirizzo) mancanti.push(`Domicilio fiscale (comune, provincia, via) nei "Dati per il modello F24" ${soc}`)
+  if (contribuente.persona && (!s?.f24_cognome || !s?.f24_nome)) mancanti.push(`Cognome e nome separati del proprietario persona fisica ${soc}`)
+  if (contribuente.persona && !contribuente.comuneNascita) mancanti.push(`Comune di nascita del proprietario persona fisica ${soc}`)
+  if (contribuente.persona && (!contribuente.dataNascita || !contribuente.sesso)) mancanti.push(`Data di nascita e sesso del proprietario (non ricavabili dal codice fiscale) ${soc}`)
   if (!codiceFiscaleDi(k)) mancanti.push(`Codice fiscale o partita IVA del conduttore "${k?.denominazione ?? '?'}", da indicare come coobbligato (Anagrafiche → Conduttori)`)
   if (!codiceContratto) mancanti.push('Codice identificativo del contratto registrato (Contratti → Registrazione)')
   if (!imposta) mancanti.push("Importo dell'imposta dell'annualità (Registro annuale)")
@@ -74,7 +128,7 @@ export function preparaF24(ctx: ContestoAnnualita, pagamento: string, tassi: Rec
 
   return {
     ravvedimento: r,
-    contribuente: { codiceFiscale: codiceFiscaleDi(s), denominazione: s?.ragione_sociale ?? '', domicilio: s?.sede ?? '' },
+    contribuente,
     secondoCodiceFiscale: codiceFiscaleDi(k), codiceIdentificativo: '63', codiceContratto, righe, mancanti,
   }
 }

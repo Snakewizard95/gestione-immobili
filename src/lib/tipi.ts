@@ -11,6 +11,16 @@ export interface Societa extends RecordBase {
   sede: string
   pec: string
   note: string
+  // Dati per il modello F24 (facoltativi; assenti nei record creati prima della v0.9.1)
+  f24_cognome?: string          // solo persone fisiche
+  f24_nome?: string             // solo persone fisiche
+  f24_data_nascita?: string     // AAAA-MM-GG (se vuota si ricava dal codice fiscale)
+  f24_sesso?: string            // M | F (se vuoto si ricava dal codice fiscale)
+  f24_comune_nascita?: string
+  f24_prov_nascita?: string
+  domicilio_comune?: string
+  domicilio_prov?: string
+  domicilio_indirizzo?: string
 }
 
 export interface Conduttore extends RecordBase {

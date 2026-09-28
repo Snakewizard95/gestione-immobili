@@ -1,6 +1,5 @@
 /**
- * Fogli A4 stampabili (da salvare in PDF con "Stampa → Salva come PDF"):
- * - prospetto di compilazione dell'F24 Elide per l'imposta di registro (con ravvedimento);
+ * Fogli A4 stampabili  (da salvare in PDF con "Stampa → Salva come PDF"):
  * - lettera di aumento ISTAT al conduttore.
  * La data (pagamento o lettera) arriva nell'indirizzo: ...?data=AAAA-MM-GG
  */
@@ -10,9 +9,9 @@ import { ArrowLeft, Printer } from 'lucide-react'
 import { useDatiDocumenti } from '../components/Documenti'
 import { Avviso, Bottone, Caricamento } from '../components/ui'
 import logo from '../assets/logo-gruppo.png'
-import { preparaF24, preparaLetteraIstat } from '../lib/documenti'
+import { preparaLetteraIstat } from '../lib/documenti'
 import { inCedolare } from '../lib/tipi'
-import { formattaData, formattaEuro, oggiIso } from '../lib/utils/formato'
+import { formattaData, oggiIso } from '../lib/utils/formato'
 
 function Foglio({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
@@ -24,86 +23,6 @@ function Foglio({ children }: { children: ReactNode }) {
       </div>
       <div className="pagina-stampa ombra-md mx-auto my-8 max-w-[794px] bg-white px-6 py-10 text-sm md:px-[60px] md:py-14 print:my-0">{children}</div>
     </div>
-  )
-}
-
-/** Casella con etichetta piccola, come nei riquadri del modello F24. */
-function Casella({ etichetta, valore, className = '' }: { etichetta: string; valore: ReactNode; className?: string }) {
-  return (
-    <div className={`border border-testo px-2 py-1 ${className}`}>
-      <div className="text-[9px] uppercase tracking-[0.08em] text-neutro-700">{etichetta}</div>
-      <div className="num min-h-5 font-medium">{valore}</div>
-    </div>
-  )
-}
-
-export function StampaF24() {
-  const { id = '' } = useParams()
-  const [parametri] = useSearchParams()
-  const pagamento = parametri.get('data') || oggiIso()
-  const d = useDatiDocumenti()
-  const ctx = d.contesto(id)
-  if (!ctx) return <Foglio>{d.caricamento ? <Caricamento /> : <Avviso tipo="errore">Annualità non trovata.</Avviso>}</Foglio>
-  if (inCedolare(ctx.contratto)) return <Foglio><Avviso tipo="ok">Contratto in cedolare secca: l'imposta di registro non è dovuta, non serve alcun F24.</Avviso></Foglio>
-  const f = preparaF24(ctx, pagamento, d.tassi)
-  const r = f.ravvedimento
-
-  return (
-    <Foglio>
-      <header className="mb-6 flex items-start justify-between gap-6 border-b-2 border-testo pb-4">
-        <div>
-          <div className="kicker">Prospetto di compilazione · F24 Elide</div>
-          <h1 className="mt-1 text-[30px]">Imposta di registro · annualità {ctx.annualita.anno}</h1>
-          <div className="mt-1 text-neutro-700">{ctx.immobile?.indirizzo} · conduttore {ctx.conduttore?.denominazione}</div>
-        </div>
-        <img src={logo} alt="" className="h-11 w-[170px] flex-none object-cover" />
-      </header>
-
-      {f.mancanti.length > 0 && <div className="mb-5"><Avviso tipo="attenzione">Dati mancanti: {f.mancanti.join('; ')}.</Avviso></div>}
-
-      <div className="mb-1 text-[10px] uppercase tracking-[0.14em] text-accento-700">Contribuente</div>
-      <div className="mb-2 grid grid-cols-[1fr_2fr] gap-1">
-        <Casella etichetta="Codice fiscale" valore={f.contribuente.codiceFiscale} />
-        <Casella etichetta="Denominazione / ragione sociale" valore={f.contribuente.denominazione} />
-      </div>
-      <Casella className="mb-2" etichetta="Domicilio fiscale" valore={f.contribuente.domicilio} />
-      <div className="mb-6 grid grid-cols-[2fr_1fr] gap-1">
-        <Casella etichetta="Codice fiscale / P. IVA del coobbligato (conduttore)" valore={f.secondoCodiceFiscale} />
-        <Casella etichetta="Codice identificativo (63 = controparte)" valore={f.codiceIdentificativo} />
-      </div>
-
-      <div className="mb-1 text-[10px] uppercase tracking-[0.14em] text-accento-700">Erario ed altro</div>
-      <table className="mb-2 w-full border-collapse text-[12.5px]">
-        <thead><tr className="text-left text-[9px] uppercase tracking-[0.08em] text-neutro-700">
-          {['Tipo', 'Elementi identificativi', 'Codice', 'Anno di riferimento', 'Importi a debito versati'].map((h) => <th key={h} className="border border-testo px-2 py-1 font-medium">{h}</th>)}
-        </tr></thead>
-        <tbody>
-          {f.righe.map((x) => (
-            <tr key={x.codice}>
-              <td className="border border-testo px-2 py-1.5 text-center">{x.tipo}</td>
-              <td className="num border border-testo px-2 py-1.5">{x.elementi}</td>
-              <td className="num border border-testo px-2 py-1.5 font-medium">{x.codice}</td>
-              <td className="num border border-testo px-2 py-1.5">{x.anno}</td>
-              <td className="num border border-testo px-2 py-1.5 text-right font-medium">{formattaEuro(x.importo_cent)}</td>
-            </tr>
-          ))}
-          <tr><td colSpan={4} className="border border-testo px-2 py-1.5 text-right font-bold">SALDO FINALE</td><td className="num border border-testo px-2 py-1.5 text-right font-bold">{formattaEuro(r.totale_cent)}</td></tr>
-        </tbody>
-      </table>
-      <p className="mb-6 text-xs text-neutro-700">Codice ufficio e codice atto: lasciare vuoti quando è indicato il codice identificativo del contratto.</p>
-
-      <div className="border-t border-divisore pt-4 text-[12.5px]">
-        <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-accento-700">Dettaglio del calcolo</div>
-        <p>Inizio annualità {formattaData(ctx.annualita.data_inizio)} · scadenza del versamento {formattaData(r.scadenza)} · data di pagamento {formattaData(r.pagamento)}.</p>
-        {r.giorniRitardo === 0 ? <p>Pagamento nei termini: nessuna sanzione e nessun interesse.</p> : (
-          <>
-            <p>Ritardo di {r.giorniRitardo} giorni. {r.fascia.descrizione}: sanzione del {r.fascia.percentuale.toLocaleString('it-IT', { maximumFractionDigits: 4 })}% su {formattaEuro(r.imposta_cent)} = {formattaEuro(r.sanzione_cent)}.</p>
-            <p>Interessi al tasso legale: {r.dettaglioInteressi.map((q) => `${q.anno} ${q.giorni} giorni al ${q.tasso.toLocaleString('it-IT')}% = ${formattaEuro(q.interessi_cent)}`).join('; ')}.</p>
-          </>
-        )}
-        <p className="mt-4 text-[10px] text-neutro-600">Prospetto generato da Gestione Immobili: non è il modello ufficiale. Riportare i dati nel modello F24 Elide (home banking o intermediario). Calcolo indicativo da verificare con il commercialista.</p>
-      </div>
-    </Foglio>
   )
 }
 

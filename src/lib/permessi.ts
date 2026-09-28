@@ -25,7 +25,7 @@ export function sezioneDiPercorso(path: string): Sezione | null {
   if (path.startsWith('/registro')) return 'registro'
   if (path.startsWith('/canoni')) return 'canoni'
   if (path.startsWith('/condominio')) return 'condominio'
-  if (path.startsWith('/comunicazioni') || path.startsWith('/stampa/f24') || path.startsWith('/stampa/lettera-istat')) return 'comunicazioni'
+  if (path.startsWith('/comunicazioni') || path.startsWith('/stampa/lettera-istat')) return 'comunicazioni'
   if (/^\/(societa|immobili|conduttori|condomini)/.test(path)) return 'anagrafiche'
   if (path.startsWith('/stampa')) return 'contratti'
   if (path.startsWith('/importa')) return 'importa'

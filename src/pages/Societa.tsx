@@ -19,6 +19,15 @@ export default function PaginaSocieta() {
         { nome: 'sede', etichetta: 'Sede legale', tipo: 'testo', intera: true },
         { nome: 'pec', etichetta: 'PEC', tipo: 'testo' },
         { nome: 'note', etichetta: 'Note', tipo: 'textarea' },
+        { nome: 'domicilio_comune', etichetta: 'Comune del domicilio fiscale', tipo: 'testo', sezione: 'Dati per il modello F24', colonne: 3 },
+        { nome: 'domicilio_prov', etichetta: 'Provincia (sigla)', tipo: 'testo' },
+        { nome: 'domicilio_indirizzo', etichetta: 'Via e numero civico', tipo: 'testo' },
+        { nome: 'f24_cognome', etichetta: 'Cognome (solo persona fisica)', tipo: 'testo' },
+        { nome: 'f24_nome', etichetta: 'Nome (solo persona fisica)', tipo: 'testo' },
+        { nome: 'f24_sesso', etichetta: 'Sesso (M o F)', tipo: 'select', opzioni: [{ valore: 'M', etichetta: 'M' }, { valore: 'F', etichetta: 'F' }], aiuto: 'Se vuoto si ricava dal codice fiscale' },
+        { nome: 'f24_data_nascita', etichetta: 'Data di nascita', tipo: 'data', aiuto: 'Se vuota si ricava dal codice fiscale' },
+        { nome: 'f24_comune_nascita', etichetta: 'Comune (o Stato estero) di nascita', tipo: 'testo' },
+        { nome: 'f24_prov_nascita', etichetta: 'Provincia di nascita (sigla)', tipo: 'testo' },
       ]}
       colonne={() => [
         { chiave: 'nome', etichetta: 'Ragione sociale', render: (r) => <span className="font-medium">{r.ragione_sociale}</span> },

@@ -19,7 +19,7 @@ import PaginaCanoni from './pages/Canoni'
 import PaginaCondominio from './pages/Condominio'
 import SchedaImmobile from './pages/SchedaImmobile'
 import PaginaComunicazioni from './pages/Comunicazioni'
-import { StampaF24, StampaLetteraIstat } from './pages/StampaDocumenti'
+import { StampaLetteraIstat } from './pages/StampaDocumenti'
 
 /** Mostra le pagine interne solo se l'utente ha effettuato l'accesso. */
 function AreaProtetta() {
@@ -28,7 +28,6 @@ function AreaProtetta() {
   return (
     <Routes>
       <Route path="/stampa/immobile/:id" element={<Guardia sezione="contratti"><SchedaImmobile /></Guardia>} />
-      <Route path="/stampa/f24/:id" element={<Guardia sezione="comunicazioni"><StampaF24 /></Guardia>} />
       <Route path="/stampa/lettera-istat/:id" element={<Guardia sezione="comunicazioni"><StampaLetteraIstat /></Guardia>} />
       <Route path="/*" element={<AreaConMenu />} />
     </Routes>

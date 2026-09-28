@@ -4,9 +4,10 @@
  */
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Printer } from 'lucide-react'
+import { FileDown, Printer } from 'lucide-react'
 import { contestoDi, preparaF24, preparaLetteraIstat, tassiLegali, type ContestoAnnualita } from '../lib/documenti'
 import { formattaPercentuale } from '../lib/ravvedimento'
+import { apriOScaricaPdf, creaF24ElidePdf } from '../lib/f24pdf'
 import { puoModificare } from '../lib/permessi'
 import { useSessioneAttiva, useUtente } from '../lib/sessione'
 import { aggiorna, attivi, campiModifica, campiNuovo } from '../lib/store'
@@ -65,6 +66,7 @@ export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | n
   const [conferma, setConferma] = useState(false)
   const [inCorso, setInCorso] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
+  const [generando, setGenerando] = useState(false)
   const ctx = annualitaId ? d.contesto(annualitaId) : null
 
   function chiudi() { setConferma(false); setErrore(null); onChiudi() }
@@ -117,7 +119,8 @@ export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | n
           <h6 className="mb-2 text-accento-700">Contribuente</h6>
           <div className="mb-5">
             <Riga etichetta="Codice fiscale (locatore)" valore={f.contribuente.codiceFiscale} copia={f.contribuente.codiceFiscale} />
-            <Riga etichetta="Denominazione" valore={f.contribuente.denominazione} copia={f.contribuente.denominazione} />
+            <Riga etichetta={f.contribuente.persona ? 'Cognome e nome' : 'Denominazione'} valore={[f.contribuente.cognomeODenominazione, f.contribuente.nome].filter(Boolean).join(' ')} />
+            <Riga etichetta="Domicilio fiscale" valore={[f.contribuente.domicilioIndirizzo, f.contribuente.domicilioComune, f.contribuente.domicilioProv].filter(Boolean).join(' · ')} />
             <Riga etichetta="Cod. fiscale / P. IVA del coobbligato (conduttore)" valore={f.secondoCodiceFiscale} copia={f.secondoCodiceFiscale} />
             <Riga etichetta="Codice identificativo del coobbligato" valore={`${f.codiceIdentificativo} (controparte)`} copia={f.codiceIdentificativo} />
           </div>
@@ -143,14 +146,18 @@ export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | n
               </table>
             </div>
           </Riquadro>
-          <p className="mb-5 text-xs text-neutro-700">Calcolo indicativo: verificare con il commercialista prima del pagamento. Se il codice identificativo del contratto è indicato, codice ufficio e codice atto restano vuoti.</p>
+          <p className="mb-5 text-xs text-neutro-700">Il pulsante crea il modello ufficiale F24 Elide dell'Agenzia delle Entrate già compilato (tre copie), da stampare e presentare in banca o in posta: restano da compilare a mano solo la banca delegata e la firma. Calcolo indicativo: verificare con il commercialista prima del pagamento.</p>
           {errore && <div className="mb-4"><Avviso tipo="errore">{errore}</Avviso></div>}
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-divisore pt-5">
-            <Link to={`/stampa/f24/${a.id}?data=${pagamento}`} className="btn btn-secondario no-underline"><Printer size={16} /> Apri il prospetto da stampare</Link>
+            <Bottone disabled={generando} onClick={async () => {
+              setGenerando(true); setErrore(null)
+              try { apriOScaricaPdf(await creaF24ElidePdf(f), `F24_Elide_${(ctx.immobile?.indirizzo ?? 'immobile').replace(/[^\w]+/g, '_')}_${a.anno}.pdf`) }
+              catch (e) { setErrore('Impossibile creare il modello F24: ' + (e as Error).message) } finally { setGenerando(false) }
+            }}><FileDown size={16} /> {generando ? 'Preparazione…' : 'Scarica il modello F24 Elide compilato'}</Bottone>
             <div className="flex flex-wrap items-center gap-2.5">
               <Bottone variante="secondario" onClick={chiudi}>Chiudi</Bottone>
-              {puo && !pagata && !conferma && <Bottone disabled={r.tassiMancanti.length > 0 || !a.imposta_cent} onClick={() => setConferma(true)}>Segna come pagato</Bottone>}
+              {puo && !pagata && !conferma && <Bottone variante="secondario" disabled={r.tassiMancanti.length > 0 || !a.imposta_cent} onClick={() => setConferma(true)}>Segna come pagato</Bottone>}
               {puo && !pagata && conferma && (
                 <span className="flex flex-wrap items-center gap-2 text-[13px]">
                   Confermi il pagamento del {formattaData(pagamento)} per {formattaEuro(r.totale_cent)}?
