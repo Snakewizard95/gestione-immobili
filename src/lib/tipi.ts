@@ -162,6 +162,8 @@ export interface Annualita extends RecordBase {
   // Ravvedimento operoso versato insieme all'imposta (se pagata in ritardo)
   ravvedimento_sanzione_cent?: number | null
   ravvedimento_interessi_cent?: number | null
+  // Prima annualità di una proroga del contratto: imposta con codice tributo 1504 invece di 1501
+  proroga?: string
   note: string
 }
 

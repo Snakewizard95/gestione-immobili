@@ -5,7 +5,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { FileDown, Printer } from 'lucide-react'
-import { contestoDi, preparaF24, preparaLetteraIstat, tassiLegali, type ContestoAnnualita, type Problema } from '../lib/documenti'
+import { contestoDa, contestoDi, preparaF24, preparaLetteraIstat, tassiLegali, type ContestoAnnualita, type Problema } from '../lib/documenti'
 import { formattaPercentuale } from '../lib/ravvedimento'
 import { apriOScaricaPdf, creaF24ElidePdf } from '../lib/f24pdf'
 import { puoModificare } from '../lib/permessi'
@@ -29,6 +29,7 @@ export function useDatiDocumenti() {
     tassiSalvati: attivi(col.dati<TassoLegale>('tassi_legali')),
     comunicazioni: attivi(col.dati<Comunicazione>('comunicazioni')),
     contesto: (annualitaId: string) => contestoDi(annualitaId, dati),
+    contestoDa: (a: Annualita) => contestoDa(a, dati),
   }
 }
 
@@ -59,7 +60,11 @@ function Riga({ etichetta, valore, copia }: { etichetta: string; valore: ReactNo
 
 /* =============================== F24 =============================== */
 
-export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | null; onChiudi: () => void }) {
+/**
+ * Finestra F24. `annualitaId` = annualità salvata; in alternativa `annualita` = annualità preparata dall'app
+ * (es. prima annualità di una proroga non ancora registrata: viene creata quando si segna come pagata).
+ */
+export function FinestraF24({ annualitaId, annualita, onChiudi }: { annualitaId?: string | null; annualita?: Annualita | null; onChiudi: () => void }) {
   const { token, nome } = useSessioneAttiva()
   const puo = puoModificare(useUtente(), 'comunicazioni')
   const d = useDatiDocumenti()
@@ -69,7 +74,8 @@ export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | n
   const [errore, setErrore] = useState<string | null>(null)
   const [generando, setGenerando] = useState(false)
   const [avvertimento, setAvvertimento] = useState(false)
-  const ctx = annualitaId ? d.contesto(annualitaId) : null
+  const ctx = annualita ? d.contestoDa(annualita) : annualitaId ? d.contesto(annualitaId) : null
+  const aperta = !!annualita || !!annualitaId
 
   function chiudi() { setConferma(false); setErrore(null); setAvvertimento(false); onChiudi() }
 
@@ -78,7 +84,8 @@ export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | n
   if (ctx) {
     const a = ctx.annualita
     const testo = descrizione(ctx)
-    titolo = `F24 imposta di registro — ${ctx.immobile?.indirizzo ?? ''} · ${a.anno}`
+    const proroga = a.proroga === 'si'
+    titolo = `F24 ${proroga ? 'proroga del contratto' : 'imposta di registro'} — ${ctx.immobile?.indirizzo ?? ''} · ${proroga ? `dal ${formattaData(a.data_inizio)}` : a.anno}`
     if (inCedolare(ctx.contratto)) {
       corpo = <Avviso tipo="ok">Contratto in cedolare secca: l'imposta di registro non è dovuta, non serve alcun F24.</Avviso>
     } else {
@@ -93,14 +100,18 @@ export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | n
       async function segnaPagato() {
         setInCorso(true); setErrore(null)
         try {
-          await aggiorna<Annualita>(token, 'annualita', (rec) => rec.map((x) => (x.id === a.id ? {
-            ...x, imposta_pagata: 'si', imposta_data_pagamento: pagamento, imposta_modalita: 'f24_elide',
-            ravvedimento_sanzione_cent: r.sanzione_cent || null, ravvedimento_interessi_cent: r.interessi_cent || null, ...campiModifica(nome),
-          } : x)), `${nome}: imposta di registro ${a.anno} pagata con F24 — ${testo}`)
+          const pagamentoFatto = { imposta_pagata: 'si', imposta_data_pagamento: pagamento, imposta_modalita: 'f24_elide', ravvedimento_sanzione_cent: r.sanzione_cent || null, ravvedimento_interessi_cent: r.interessi_cent || null }
+          const salvata = d.annualita.some((x) => x.id === a.id)
+          // Una proroga non ancora registrata diventa una nuova annualità (già pagata)
+          const nuova: Annualita | null = salvata ? null : { ...a, ...pagamentoFatto, ...campiNuovo(nome) }
+          const idAnnualita = nuova?.id ?? a.id
+          await aggiorna<Annualita>(token, 'annualita', (rec) => (nuova ? [...rec, nuova] : rec.map((x) => (x.id === a.id ? { ...x, ...(proroga ? { proroga: 'si' } : {}), ...pagamentoFatto, ...campiModifica(nome) } : x))),
+            `${nome}: ${proroga ? `proroga dal ${formattaData(a.data_inizio)}` : `imposta di registro ${a.anno}`} pagata con F24 — ${testo}`)
           const dettagli = f.righe.map((x) => `${x.codice} ${formattaEuro(x.importo_cent)}`).join(' · ') + ` · totale ${formattaEuro(r.totale_cent)}`
           const registro: Comunicazione = {
-            ...campiNuovo(nome), tipo: 'f24', contratto_id: a.contratto_id, annualita_id: a.id, data: pagamento, destinatario: 'Agenzia delle Entrate (F24 Elide)',
-            oggetto: `Imposta di registro annualità ${a.anno}${r.giorniRitardo > 0 ? ' con ravvedimento operoso' : ''}`, dettagli, note: '',
+            ...campiNuovo(nome), tipo: 'f24', contratto_id: a.contratto_id, annualita_id: idAnnualita, data: pagamento, destinatario: 'Agenzia delle Entrate (F24 Elide)',
+            oggetto: `${proroga ? `Imposta di registro per la proroga dal ${formattaData(a.data_inizio)}` : `Imposta di registro annualità ${a.anno}`}${r.giorniRitardo > 0 ? ' con ravvedimento operoso' : ''}`, dettagli,
+            note: proroga ? 'Ricordarsi di presentare il modello RLI (comunicazione di proroga) entro 30 giorni' : '',
           }
           await aggiorna<Comunicazione>(token, 'comunicazioni', (rec) => [...rec, registro], `${nome}: registra F24 imposta di registro ${a.anno} — ${testo}`)
           chiudi()
@@ -108,11 +119,12 @@ export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | n
       }
       corpo = (
         <>
+          {proroga && <div className="mb-5"><Avviso tipo="info"><strong>Proroga del contratto</strong> dal {formattaData(a.data_inizio)}: imposta della prima annualità con codice tributo <strong>1504</strong>{a.canone_nuovo_cent ? ` (${formattaPercentuale(a.imposta_percento ?? 2)} di ${formattaEuro(a.canone_nuovo_cent)} di canone annuo${(a.base_imponibile_percento ?? 100) !== 100 ? ` sul ${a.base_imponibile_percento}%` : ''})` : ''}. Le annualità successive si pagano con il 1501. Pagando con F24 va presentato anche il <strong>modello RLI</strong> (comunicazione di proroga) all'ufficio dove è registrato il contratto entro 30 giorni.</Avviso></div>}
           {pagata && <div className="mb-5"><Avviso tipo="ok">Imposta già segnata come pagata il {formattaData(a.imposta_data_pagamento)}{a.ravvedimento_sanzione_cent ? `, con ravvedimento (sanzione ${formattaEuro(a.ravvedimento_sanzione_cent)}, interessi ${formattaEuro(a.ravvedimento_interessi_cent)})` : ''}.</Avviso></div>}
           <Mancanti voci={f.mancanti} cosa="compilare il modello F24" grave />
           {f.contribuente.domicilioDaSede && <div className="mb-5"><Avviso tipo="info">Il domicilio fiscale è stato ricavato dalla "Sede legale" della società: controllalo nel modello o compilalo nei "Dati per il modello F24" dell'anagrafica.</Avviso></div>}
           <div className="mb-5 grid gap-4 sm:grid-cols-3">
-            <div><span className="etichetta-campo">Inizio annualità</span><div className="num py-1.5">{formattaData(a.data_inizio)}</div></div>
+            <div><span className="etichetta-campo">{proroga ? 'Inizio della proroga' : 'Inizio annualità'}</span><div className="num py-1.5">{formattaData(a.data_inizio)}</div></div>
             <div><span className="etichetta-campo">Scadenza del versamento</span><div className="num py-1.5">{formattaData(r.scadenza)}</div></div>
             <label className="block"><span className="etichetta-campo">Data di pagamento</span>
               <input type="date" className="input" value={pagamento} onChange={(e) => setPagamento(e.target.value || oggiIso())} />
@@ -120,7 +132,7 @@ export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | n
           </div>
           <div className="mb-5">
             {r.giorniRitardo === 0
-              ? <Avviso tipo="ok">Pagamento nei termini: si versa solo l'imposta (codice 1501).</Avviso>
+              ? <Avviso tipo="ok">Pagamento nei termini: si versa solo l'imposta (codice {proroga ? '1504' : '1501'}).</Avviso>
               : <Avviso tipo="attenzione">In ritardo di <strong>{r.giorniRitardo} giorni</strong>: ravvedimento operoso. {r.fascia.descrizione}: sanzione {formattaPercentuale(r.fascia.percentuale)} dell'imposta; interessi al tasso legale {r.dettaglioInteressi.map((q) => `${q.anno}: ${q.giorni} gg al ${formattaPercentuale(q.tasso)}`).join(', ')}.</Avviso>}
           </div>
 
@@ -190,7 +202,7 @@ export function FinestraF24({ annualitaId, onChiudi }: { annualitaId: string | n
     }
   }
   return (
-    <Finestra kicker={ctx?.societa?.ragione_sociale} titolo={titolo} aperta={annualitaId !== null} onChiudi={chiudi} larga>
+    <Finestra kicker={ctx?.societa?.ragione_sociale} titolo={titolo} aperta={aperta} onChiudi={chiudi} larga>
       {d.errore ? <Avviso tipo="errore">{d.errore}</Avviso> : corpo}
     </Finestra>
   )

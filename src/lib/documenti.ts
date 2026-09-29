@@ -3,7 +3,7 @@
  * prospetto F24 Elide per l'imposta di registro (con ravvedimento) e lettera di aumento ISTAT.
  * Funzioni pure: ricevono i record già caricati e restituiscono dati pronti da mostrare o stampare.
  */
-import { CODICE_IMPOSTA, CODICE_INTERESSI, CODICE_SANZIONE, TASSI_LEGALI_INIZIALI, calcolaRavvedimento, scadenzaVersamento, type Ravvedimento } from './ravvedimento'
+import { CODICE_IMPOSTA, CODICE_IMPOSTA_PROROGA, CODICE_INTERESSI, CODICE_SANZIONE, TASSI_LEGALI_INIZIALI, calcolaRavvedimento, scadenzaVersamento, type Ravvedimento } from './ravvedimento'
 import { attivi } from './store'
 import { statoIva, type Annualita, type Conduttore, type Contratto, type Immobile, type Societa, type TassoLegale } from './tipi'
 import { formattaData, formattaEuro } from './utils/formato'
@@ -24,9 +24,15 @@ export interface ContestoAnnualita {
   conduttore: Conduttore | undefined
 }
 
-export function contestoDi(annualitaId: string, dati: { annualita: Annualita[]; contratti: Contratto[]; immobili: Immobile[]; societa: Societa[]; conduttori: Conduttore[] }): ContestoAnnualita | null {
+type DatiContesto = { annualita: Annualita[]; contratti: Contratto[]; immobili: Immobile[]; societa: Societa[]; conduttori: Conduttore[] }
+
+export function contestoDi(annualitaId: string, dati: DatiContesto): ContestoAnnualita | null {
   const annualita = dati.annualita.find((a) => a.id === annualitaId)
-  if (!annualita) return null
+  return annualita ? contestoDa(annualita, dati) : null
+}
+
+/** Contesto a partire da un'annualità anche non ancora salvata (es. una proroga da registrare). */
+export function contestoDa(annualita: Annualita, dati: DatiContesto): ContestoAnnualita {
   const contratto = dati.contratti.find((c) => c.id === annualita.contratto_id)
   const immobile = dati.immobili.find((i) => i.id === contratto?.immobile_id)
   return {
@@ -133,7 +139,8 @@ export function preparaF24(ctx: ContestoAnnualita, pagamento: string, tassi: Rec
   const scadenza = scadenzaVersamento(a.data_inizio)
   const r = calcolaRavvedimento(imposta, scadenza, pagamento, tassi)
   const codiceContratto = normalizzaCodiceContratto(c?.reg_codice)
-  const righe: RigaF24[] = [{ tipo: 'F', elementi: codiceContratto, codice: CODICE_IMPOSTA, anno: r.annoRiferimento, importo_cent: imposta, descrizione: 'Imposta di registro, annualità successiva' }]
+  const proroga = a.proroga === 'si'
+  const righe: RigaF24[] = [{ tipo: 'F', elementi: codiceContratto, codice: proroga ? CODICE_IMPOSTA_PROROGA : CODICE_IMPOSTA, anno: r.annoRiferimento, importo_cent: imposta, descrizione: proroga ? 'Imposta di registro, proroga del contratto' : 'Imposta di registro, annualità successiva' }]
   if (r.sanzione_cent > 0) righe.push({ tipo: 'F', elementi: codiceContratto, codice: CODICE_SANZIONE, anno: r.annoRiferimento, importo_cent: r.sanzione_cent, descrizione: 'Sanzione da ravvedimento per tardivo versamento' })
   if (r.interessi_cent > 0) righe.push({ tipo: 'F', elementi: codiceContratto, codice: CODICE_INTERESSI, anno: r.annoRiferimento, importo_cent: r.interessi_cent, descrizione: 'Interessi da ravvedimento per tardivo versamento' })
 

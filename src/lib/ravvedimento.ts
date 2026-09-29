@@ -27,6 +27,7 @@ const SANZIONE_BASE_NUOVA = 25
 const SANZIONE_BASE_VECCHIA = 30
 
 export const CODICE_IMPOSTA = '1501'
+export const CODICE_IMPOSTA_PROROGA = '1504'
 export const CODICE_SANZIONE = '1509'
 export const CODICE_INTERESSI = '1510'
 

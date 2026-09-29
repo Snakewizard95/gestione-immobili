@@ -1,19 +1,20 @@
 /**
- * Documenti e comunicazioni: F24 dell'imposta di registro (con ravvedimento operoso), lettere di aumento ISTAT,
+ * Documenti e comunicazioni: F24 dell'imposta di registro (annualità e proroghe, con ravvedimento operoso), lettere di aumento ISTAT,
  * calcolatore del ravvedimento con la tabella dei tassi legali, storico dei documenti pagati / inviati.
  */
 import { useState } from 'react'
-import { FileText, Receipt } from 'lucide-react'
+import { CalendarClock, FileText, Receipt } from 'lucide-react'
 import { FinestraF24, FinestraLetteraIstat, StatoVersamento, useDatiDocumenti } from '../components/Documenti'
 import { SoloSeModifica } from '../components/SoloLettura'
 import { Avviso, BarraRicerca, Bottone, Caricamento, Copia, Etichetta, IntestazionePagina, Riquadro, Segmentato, Tabella, filtraTesto } from '../components/ui'
 import { calcolaRavvedimento, formattaPercentuale, scadenzaVersamento } from '../lib/ravvedimento'
+import { GIORNI_ANTICIPO, contrattiSenzaScadenza, proroghePreviste, type ProrogaAttesa } from '../lib/proroghe'
 import { useSessioneAttiva } from '../lib/sessione'
 import { aggiorna, campiModifica, campiNuovo } from '../lib/store'
-import { TIPI_COMUNICAZIONE, etichettaDi, inCedolare, type Annualita, type TassoLegale } from '../lib/tipi'
+import { TIPI_COMUNICAZIONE, TIPOLOGIE_CONTRATTO, etichettaDi, inCedolare, type Annualita, type TassoLegale } from '../lib/tipi'
 import { analizzaEuro, formattaData, formattaEuro, oggiIso } from '../lib/utils/formato'
 
-type Scheda = 'f24' | 'istat' | 'calcolo' | 'storico'
+type Scheda = 'f24' | 'proroghe' | 'istat' | 'calcolo' | 'storico'
 type Riga = Annualita & { immobile: string; societa: string; conduttore: string; scadenza: string }
 
 export default function PaginaComunicazioni() {
@@ -23,6 +24,7 @@ export default function PaginaComunicazioni() {
   const [mostraTutte, setMostraTutte] = useState<'da_fare' | 'tutte'>('da_fare')
   const [f24, setF24] = useState<string | null>(null)
   const [lettera, setLettera] = useState<string | null>(null)
+  const [prorogaAperta, setProrogaAperta] = useState<Annualita | null>(null)
   const oggi = oggiIso()
 
   // Annualità con i dati descrittivi (escluse le cedolari secche: niente imposta e niente ISTAT)
@@ -31,11 +33,18 @@ export default function PaginaComunicazioni() {
     return { ...a, immobile: ctx.immobile?.indirizzo ?? '—', societa: ctx.societa?.ragione_sociale ?? '—', conduttore: ctx.conduttore?.denominazione ?? '—', scadenza: a.data_inizio ? scadenzaVersamento(a.data_inizio) : '' }
   }).filter((r) => !inCedolare(d.contratti.find((c) => c.id === r.contratto_id)))
 
-  const perF24 = filtraTesto(righe.filter((r) => (r.imposta_cent ?? 0) > 0 && r.data_inizio && (mostraTutte === 'tutte' || r.imposta_pagata !== 'si')), ricerca)
+  const perF24 = filtraTesto(righe.filter((r) => r.proroga !== 'si' && (r.imposta_cent ?? 0) > 0 && r.data_inizio && (mostraTutte === 'tutte' || r.imposta_pagata !== 'si')), ricerca)
     .sort((a, b) => a.scadenza.localeCompare(b.scadenza))
   const perIstat = filtraTesto(righe.filter((r) => r.istat_applicato === 'si' && (mostraTutte === 'tutte' || !r.istat_data_lettera)), ricerca)
     .sort((a, b) => a.data_inizio.localeCompare(b.data_inizio))
-  const nF24 = righe.filter((r) => (r.imposta_cent ?? 0) > 0 && r.data_inizio && r.imposta_pagata !== 'si').length
+  const nF24 = righe.filter((r) => r.proroga !== 'si' && (r.imposta_cent ?? 0) > 0 && r.data_inizio && r.imposta_pagata !== 'si').length
+
+  // Proroghe: scadenze passate non pagate + quelle entro 30 giorni (calcolate dai contratti)
+  type RigaProroga = ProrogaAttesa & { immobile: string; societa: string; conduttore: string }
+  const conDescrizione = (p: ProrogaAttesa): RigaProroga => { const ctx = d.contestoDa(p.annualita); return { ...p, immobile: ctx.immobile?.indirizzo ?? '—', societa: ctx.societa?.ragione_sociale ?? '—', conduttore: ctx.conduttore?.denominazione ?? '—' } }
+  const proroghe = filtraTesto(proroghePreviste(d.contratti, d.annualita, oggi, mostraTutte === 'tutte').map(conDescrizione), ricerca, (p) => `${p.immobile} ${p.societa} ${p.conduttore}`)
+  const nProroghe = proroghePreviste(d.contratti, d.annualita, oggi).length
+  const senzaScadenza = contrattiSenzaScadenza(d.contratti)
   const nIstat = righe.filter((r) => r.istat_applicato === 'si' && !r.istat_data_lettera).length
 
   const colImmobile = { chiave: 'imm', etichetta: 'Immobile', render: (r: Riga) => <div><div className="font-medium">{r.immobile}</div><div className="text-xs text-neutro-700">{r.societa}</div></div> }
@@ -49,11 +58,12 @@ export default function PaginaComunicazioni() {
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <Segmentato valore={scheda} onChange={setScheda} opzioni={[
           { valore: 'f24', etichetta: `Imposta di registro (F24)${nF24 ? ` · ${nF24}` : ''}` },
+          { valore: 'proroghe', etichetta: `Proroghe (F24)${nProroghe ? ` · ${nProroghe}` : ''}` },
           { valore: 'istat', etichetta: `Lettere ISTAT${nIstat ? ` · ${nIstat}` : ''}` },
           { valore: 'calcolo', etichetta: 'Calcolo ravvedimento' },
           { valore: 'storico', etichetta: `Storico (${d.comunicazioni.length})` },
         ]} />
-        {(scheda === 'f24' || scheda === 'istat') && <>
+        {(scheda === 'f24' || scheda === 'proroghe' || scheda === 'istat') && <>
           <Segmentato valore={mostraTutte} onChange={setMostraTutte} opzioni={[{ valore: 'da_fare', etichetta: 'Da fare' }, { valore: 'tutte', etichetta: 'Tutte' }]} />
           <BarraRicerca valore={ricerca} onChange={setRicerca} segnaposto="Cerca immobile, conduttore, società…" />
         </>}
@@ -70,6 +80,24 @@ export default function PaginaComunicazioni() {
           { chiave: 'st', etichetta: 'Stato', render: (r) => <StatoVersamento scadenza={r.scadenza} oggi={oggi} pagata={r.imposta_pagata === 'si'} dataPagamento={r.imposta_data_pagamento} /> },
           { chiave: 'az', etichetta: '', render: (r) => <Bottone variante="secondario" piccolo onClick={(e) => { e.stopPropagation(); setF24(r.id) }}><Receipt size={14} /> Prepara F24</Bottone> },
         ]} />
+      ) : scheda === 'proroghe' ? (
+        <>
+          <div className="mb-4">
+            <Avviso tipo="info">Elenco automatico delle proroghe dei contratti (rinnovo alla scadenza, anche tacito): scadenze già passate e non ancora pagate e quelle dei prossimi {GIORNI_ANTICIPO} giorni. L'imposta della prima annualità della proroga si paga entro 30 giorni dalla scadenza con codice tributo <strong>1504</strong>; con l'F24 va presentato anche il modello RLI. Esclusi i contratti cessati, in cedolare secca e transitori.</Avviso>
+          </div>
+          {senzaScadenza.length > 0 && <div className="mb-4"><Avviso tipo="attenzione">{senzaScadenza.length} {senzaScadenza.length === 1 ? 'contratto attivo non ha' : 'contratti attivi non hanno'} la prima scadenza: le proroghe non possono essere calcolate finché non viene inserita (Contratti → Durata e scadenze).</Avviso></div>}
+          <Tabella<RigaProroga> righe={proroghe} onRiga={(p) => setProrogaAperta(p.annualita)} vuoto={mostraTutte === 'da_fare' ? 'Nessuna proroga da pagare: né scadenze passate non registrate né scadenze nei prossimi 30 giorni.' : 'Nessuna proroga calcolata.'} colonne={[
+            { chiave: 'imm', etichetta: 'Immobile', render: (p) => <div><div className="font-medium">{p.immobile}</div><div className="text-xs text-neutro-700">{p.societa}</div></div> },
+            { chiave: 'con', etichetta: 'Conduttore', render: (p) => p.conduttore },
+            { chiave: 'tip', etichetta: 'Contratto', render: (p) => <span className="text-[13px]">{etichettaDi(TIPOLOGIE_CONTRATTO, p.contratto.tipologia)}</span> },
+            { chiave: 'sca', etichetta: 'Scadenza contratto', render: (p) => <span className="num font-medium">{formattaData(p.data)}</span> },
+            { chiave: 'per', etichetta: 'Proroga', render: (p) => <span className="num text-[13px]">{p.anni} anni, fino al {formattaData(p.fine)}</span> },
+            { chiave: 'ter', etichetta: 'Pagare entro', render: (p) => <span className="num">{formattaData(p.scadenzaVersamento)}</span> },
+            { chiave: 'imp', etichetta: 'Imposta 1504', allinea: 'dx', render: (p) => <span className="font-medium">{formattaEuro(p.annualita.imposta_cent)}</span> },
+            { chiave: 'st', etichetta: 'Stato', render: (p) => <StatoVersamento scadenza={p.scadenzaVersamento} oggi={oggi} pagata={p.pagata} dataPagamento={p.annualita.imposta_data_pagamento} /> },
+            { chiave: 'az', etichetta: '', render: (p) => <Bottone variante="secondario" piccolo onClick={(e) => { e.stopPropagation(); setProrogaAperta(p.annualita) }}><CalendarClock size={14} /> Prepara F24</Bottone> },
+          ]} />
+        </>
       ) : scheda === 'istat' ? (
         <Tabella<Riga> righe={perIstat} onRiga={(r) => setLettera(r.id)} vuoto={mostraTutte === 'da_fare' ? 'Nessuna lettera ISTAT da inviare.' : 'Nessuna annualità con ISTAT applicato.'} colonne={[
           colImmobile, colConduttore,
@@ -93,6 +121,7 @@ export default function PaginaComunicazioni() {
       )}
 
       <FinestraF24 annualitaId={f24} onChiudi={() => setF24(null)} />
+      <FinestraF24 annualita={prorogaAperta} onChiudi={() => setProrogaAperta(null)} />
       <FinestraLetteraIstat annualitaId={lettera} onChiudi={() => setLettera(null)} />
     </div>
   )

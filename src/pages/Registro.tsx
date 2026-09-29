@@ -37,7 +37,7 @@ function Promemoria() {
             <li><strong>Minimo 67 €</strong>: vale per la prima registrazione, non per le annualità successive.</li>
             <li><strong>Cedolare secca</strong>: nessuna imposta di registro, ma è possibile solo per locatori persone fisiche (non per le società).</li>
             <li><strong>Ripartizione</strong>: per legge l'imposta è divisa a metà, <strong>50% a carico del conduttore</strong>, che va richiesto e incassato (registrare il rimborso nell'annualità).</li>
-            <li><strong>Come si paga</strong>: modello <strong>F24 Elide</strong>, codice tributo <strong>1501</strong> (annualità successive), 1502 proroga, 1503 risoluzione (67 €), oppure addebito tramite RLI web.</li>
+            <li><strong>Come si paga</strong>: modello <strong>F24 Elide</strong>, codice tributo <strong>1501</strong> (annualità successive), <strong>1504</strong> proroga, 1503 risoluzione (67 €), oppure addebito tramite RLI web.</li>
             <li><strong>Attenzione</strong>: le aliquote proposte dall'app dipendono dal tipo di contratto indicato nella scheda e sono sempre modificabili. In caso di dubbio confrontarsi con il commercialista.</li>
           </ul>
         </div>

@@ -8,6 +8,7 @@ import { useSessioneAttiva, useUtente } from '../lib/sessione'
 import { puoVedere } from '../lib/permessi'
 import { FinestraF24, FinestraLetteraIstat } from './Documenti'
 import { aggiorna, attivi, campiModifica, campiNuovo } from '../lib/store'
+import { inizioAnnualita, regoleImposta } from '../lib/imposta'
 import { SI_NO, TIPI_COMUNICAZIONE, TIPOLOGIE_CONTRATTO, etichettaDi, inCedolare, statoIva, type Allegato, type Comunicazione, type Annualita, type Conduttore, type Contratto, type Immobile, type Opzione, type Societa } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaData, formattaEuro } from '../lib/utils/formato'
@@ -25,20 +26,6 @@ const CATEGORIE_ANNUALITA: Opzione[] = [
 ]
 
 const r0 = (n: number) => Math.round(n)
-
-/** Aliquota e base imponibile proposte in base al tipo di contratto (modificabili nella scheda). */
-export function regoleImposta(c: Contratto): { percento: number; base: number } {
-  const usoDiverso = ['commerciale_6_6', 'commerciale_9_9', 'uso_diverso'].includes(c.tipologia)
-  if (usoDiverso) return { percento: c.regime_iva === 'con_iva' ? 1 : 2, base: 100 }
-  if (c.tipologia === 'abitativo_3_2') return { percento: 2, base: 70 }
-  return { percento: 2, base: 100 }
-}
-
-/** Data di inizio dell'annualità: giorno e mese della decorrenza del contratto, con l'anno scelto. */
-export function inizioAnnualita(c: Contratto, anno: number | null | undefined): string {
-  if (!c.data_decorrenza || !anno) return ''
-  return `${anno}-${c.data_decorrenza.slice(5, 10)}`
-}
 
 function calcolaImposta(v: Partial<Annualita>): Partial<Annualita> {
   const annuo = v.canone_nuovo_cent
@@ -127,6 +114,7 @@ export default function RegistroAnnuale({ contratto, descrizione }: Props) {
     { nome: 'canone_nuovo_cent', etichetta: 'Canone ANNUO dopo l’ISTAT', tipo: 'euro', soloLettura: true, aiuto: 'Mensile × 12' },
     { nome: 'aggiorna_canone', etichetta: 'Aggiorna il canone nella scheda contratto', tipo: 'select', opzioni: SI_NO, intera: true },
     { nome: 'imposta_percento', etichetta: 'Aliquota (%)', tipo: 'percentuale', sezione: 'Imposta di registro', aiuto: '2% abitativi · 1% uso diverso con locatore IVA' },
+    { nome: 'proroga', etichetta: 'Prima annualità di una proroga?', tipo: 'select', opzioni: SI_NO, aiuto: 'Sì = si paga con codice tributo 1504 (proroga) invece di 1501' },
     { nome: 'base_imponibile_percento', etichetta: 'Base imponibile (% del canone)', tipo: 'numero', aiuto: '100, oppure 70 per canone concordato' },
     { nome: 'imposta_cent', etichetta: 'Imposta di registro annuale (totale)', tipo: 'euro', aiuto: 'Calcolata, modificabile' },
     { nome: 'imposta_pagata', etichetta: 'Pagata', tipo: 'select', opzioni: SI_NO },
@@ -137,7 +125,7 @@ export default function RegistroAnnuale({ contratto, descrizione }: Props) {
     { nome: 'rimborso_data', etichetta: 'Data rimborso', tipo: 'data' },
     { nome: 'note', etichetta: 'Note', tipo: 'textarea' },
   ]
-  const CAMPI_IMPOSTA = ['imposta_percento', 'base_imponibile_percento', 'imposta_cent', 'imposta_pagata', 'imposta_data_pagamento', 'imposta_modalita', 'quota_conduttore_cent', 'rimborso_ricevuto', 'rimborso_data']
+  const CAMPI_IMPOSTA = ['proroga', 'imposta_percento', 'base_imponibile_percento', 'imposta_cent', 'imposta_pagata', 'imposta_data_pagamento', 'imposta_modalita', 'quota_conduttore_cent', 'rimborso_ricevuto', 'rimborso_data']
   const campi = cedolare
     ? tuttiICampi.filter((c) => !CAMPI_IMPOSTA.includes(c.nome)).map((c) => (c.nome === 'note' ? { ...c, sezione: 'Note' } : c))
     : tuttiICampi
