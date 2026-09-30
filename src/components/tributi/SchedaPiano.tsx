@@ -3,7 +3,8 @@
  * con "pagata sì/no" e totali di capitale, sanzioni, interessi, pagato e residuo.
  */
 import { useState } from 'react'
-import { Check, Pencil, Plus } from 'lucide-react'
+import { Check, Pencil, Plus, Trash2 } from 'lucide-react'
+import { aggiorna, campiModifica } from '../../lib/store'
 import Allegati from '../Allegati'
 import { useSessioneAttiva } from '../../lib/sessione'
 import { CATEGORIE_ALLEGATO_TRIBUTI, STATI_PRATICA, TIPI_PRATICA, etichettaDi, type Contribuente, type PraticaTributo, type RataTributo } from '../../lib/tipi'
@@ -17,9 +18,19 @@ export default function SchedaPiano({ pratica, contribuente, onModifica }: { pra
   const { token, nome } = useSessioneAttiva()
   const soloLettura = useSoloLettura()
   const [errore, setErrore] = useState<string | null>(null)
+  const [confermaElimina, setConfermaElimina] = useState(false)
   const [inCorso, setInCorso] = useState<number | null>(null)
   const oggi = oggiIso()
   const r = riepilogoRate(pratica.rate, oggi)
+
+  /** Elimina la pratica ("soft": resta nella storia delle modifiche). La finestra si chiude da sola. */
+  async function elimina() {
+    setErrore(null); setInCorso(-1)
+    try {
+      await aggiorna<PraticaTributo>(token, 'pratiche_tributi', (rec) => rec.map((p) => (p.id === pratica.id ? { ...p, eliminato_il: new Date().toISOString(), ...campiModifica(nome) } : p)),
+        `${nome}: elimina piano ${contribuente?.nome ?? ''} ${pratica.tributo}`)
+    } catch (e) { setErrore((e as Error).message); setInCorso(null) }
+  }
 
   /** Segna una rata pagata (con la data di oggi) o la riporta a "da pagare". */
   async function cambiaPagata(rata: RataTributo) {
@@ -102,11 +113,22 @@ export default function SchedaPiano({ pratica, contribuente, onModifica }: { pra
 
       {errore && <div className="mt-4"><Avviso tipo="errore">{errore}</Avviso></div>}
       {pratica.note && <p className="mt-5 text-[13px] text-neutro-700">Note: {pratica.note}</p>}
-      {!soloLettura && onModifica && (
-        <div className="mt-5 flex justify-end">
-          <Bottone variante={pratica.rate.length ? 'secondario' : 'primario'} onClick={onModifica}>
-            {pratica.rate.length ? <><Pencil size={15} /> Modifica piano</> : <><Plus size={15} /> Inserisci il piano (anche da PDF)</>}
-          </Bottone>
+      {!soloLettura && (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          {!confermaElimina
+            ? <Bottone variante="ghost" className="!text-accento-900" onClick={() => setConfermaElimina(true)}><Trash2 size={15} /> Elimina piano</Bottone>
+            : (
+              <span className="flex flex-wrap items-center gap-2 text-[13px]">
+                Eliminare il piano {pratica.tributo} di {contribuente?.nome}{pratica.rate.length ? ` con tutte le sue ${pratica.rate.length} rate` : ''}?
+                <Bottone variante="pericolo" disabled={inCorso !== null} onClick={elimina}>Sì, elimina</Bottone>
+                <Bottone variante="secondario" onClick={() => setConfermaElimina(false)}>No</Bottone>
+              </span>
+            )}
+          {onModifica && (
+            <Bottone variante={pratica.rate.length ? 'secondario' : 'primario'} onClick={onModifica}>
+              {pratica.rate.length ? <><Pencil size={15} /> Modifica piano</> : <><Plus size={15} /> Inserisci il piano (anche da PDF)</>}
+            </Bottone>
+          )}
         </div>
       )}
       <div className="mt-6 border-t border-divisore pt-5">
