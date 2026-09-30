@@ -19,7 +19,9 @@ import PaginaCanoni from './pages/Canoni'
 import PaginaCondominio from './pages/Condominio'
 import SchedaImmobile from './pages/SchedaImmobile'
 import PaginaComunicazioni from './pages/Comunicazioni'
+import PaginaTributi from './pages/Tributi'
 import { StampaLetteraIstat } from './pages/StampaDocumenti'
+import StampaTributi from './pages/StampaTributi'
 
 /** Mostra le pagine interne solo se l'utente ha effettuato l'accesso. */
 function AreaProtetta() {
@@ -29,6 +31,7 @@ function AreaProtetta() {
     <Routes>
       <Route path="/stampa/immobile/:id" element={<Guardia sezione="contratti"><SchedaImmobile /></Guardia>} />
       <Route path="/stampa/lettera-istat/:id" element={<Guardia sezione="comunicazioni"><StampaLetteraIstat /></Guardia>} />
+      <Route path="/stampa/tributi/:tipo/:valore" element={<Guardia sezione="tributi"><StampaTributi /></Guardia>} />
       <Route path="/*" element={<AreaConMenu />} />
     </Routes>
   )
@@ -56,6 +59,7 @@ function AreaConMenu() {
         <Route path="/canoni" element={<Guardia sezione="canoni"><PaginaCanoni /></Guardia>} />
         <Route path="/condominio" element={<Guardia sezione="condominio"><PaginaCondominio /></Guardia>} />
         <Route path="/comunicazioni" element={<Guardia sezione="comunicazioni"><PaginaComunicazioni /></Guardia>} />
+        <Route path="/tributi" element={<Guardia sezione="tributi"><PaginaTributi /></Guardia>} />
         <Route path="/importa" element={<Guardia sezione="importa"><PaginaImporta /></Guardia>} />
         <Route path="/storico" element={<Guardia sezione="storico"><PaginaStorico /></Guardia>} />
         <Route path="/impostazioni" element={<Guardia sezione="impostazioni"><Impostazioni /></Guardia>} />

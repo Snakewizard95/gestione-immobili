@@ -2,7 +2,7 @@
 import utentiJson from '../utenti.json'
 
 export type Livello = 'modifica' | 'lettura' | 'nessuno'
-export type Sezione = 'dashboard' | 'contratti' | 'registro' | 'canoni' | 'condominio' | 'comunicazioni' | 'anagrafiche' | 'importa' | 'storico' | 'impostazioni'
+export type Sezione = 'dashboard' | 'contratti' | 'registro' | 'canoni' | 'condominio' | 'comunicazioni' | 'tributi' | 'anagrafiche' | 'importa' | 'storico' | 'impostazioni'
 
 export interface Utente {
   id: string
@@ -14,7 +14,7 @@ export interface Utente {
 export const UTENTI: Utente[] = (utentiJson as { utenti: Utente[] }).utenti
 
 export const ETICHETTE_SEZIONE: Record<Sezione, string> = {
-  dashboard: 'Dashboard', contratti: 'Contratti', registro: 'ISTAT e imposta di registro', canoni: 'Canoni e incassi', condominio: 'Condominio', comunicazioni: 'Documenti e comunicazioni',
+  dashboard: 'Dashboard', contratti: 'Contratti', registro: 'ISTAT e imposta di registro', canoni: 'Canoni e incassi', condominio: 'Condominio', comunicazioni: 'Documenti e comunicazioni', tributi: 'Tributi rateizzati',
   anagrafiche: 'Anagrafiche (società, immobili, conduttori, condomini)', importa: 'Importa da Excel', storico: 'Storico modifiche', impostazioni: 'Impostazioni',
 }
 
@@ -26,6 +26,7 @@ export function sezioneDiPercorso(path: string): Sezione | null {
   if (path.startsWith('/canoni')) return 'canoni'
   if (path.startsWith('/condominio')) return 'condominio'
   if (path.startsWith('/comunicazioni') || path.startsWith('/stampa/lettera-istat')) return 'comunicazioni'
+  if (path.startsWith('/tributi') || path.startsWith('/stampa/tributi')) return 'tributi'
   if (/^\/(societa|immobili|conduttori|condomini)/.test(path)) return 'anagrafiche'
   if (path.startsWith('/stampa')) return 'contratti'
   if (path.startsWith('/importa')) return 'importa'
@@ -42,6 +43,6 @@ export function puoModificare(u: Utente | null | undefined, s: Sezione): boolean
 
 /** Prima sezione visibile per l'utente, in ordine di menu (per il reindirizzamento dopo il login). */
 export function primoPercorso(u: Utente | null | undefined): string {
-  const ordine: Array<[Sezione, string]> = [['dashboard', '/'], ['contratti', '/contratti'], ['registro', '/registro'], ['canoni', '/canoni'], ['condominio', '/condominio'], ['comunicazioni', '/comunicazioni'], ['anagrafiche', '/societa'], ['importa', '/importa'], ['storico', '/storico'], ['impostazioni', '/impostazioni']]
+  const ordine: Array<[Sezione, string]> = [['dashboard', '/'], ['contratti', '/contratti'], ['registro', '/registro'], ['canoni', '/canoni'], ['condominio', '/condominio'], ['comunicazioni', '/comunicazioni'], ['tributi', '/tributi'], ['anagrafiche', '/societa'], ['importa', '/importa'], ['storico', '/storico'], ['impostazioni', '/impostazioni']]
   return ordine.find(([s]) => puoVedere(u, s))?.[1] ?? '/impostazioni'
 }

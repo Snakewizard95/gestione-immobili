@@ -172,7 +172,8 @@ export const CATEGORIE_ALLEGATO: Opzione[] = [
   { valore: 'f24', etichetta: 'F24 / ricevuta pagamento imposta' }, { valore: 'rimborso', etichetta: 'Ricevuta rimborso conduttore' },
   { valore: 'lettera_istat', etichetta: 'Lettera aggiornamento ISTAT' }, { valore: 'bollettino', etichetta: 'Bollettino' },
   { valore: 'bilancio_condominiale', etichetta: 'Bilancio / verbale condominiale' }, { valore: 'visura', etichetta: 'Visura' },
-  { valore: 'planimetria', etichetta: 'Planimetria' }, { valore: 'altro', etichetta: 'Altro' },
+  { valore: 'planimetria', etichetta: 'Planimetria' }, { valore: 'piano_rateizzo', etichetta: 'Piano di rateizzo (AdE / AdER)' },
+  { valore: 'avviso_tributo', etichetta: 'Avviso bonario / cartella' }, { valore: 'altro', etichetta: 'Altro' },
 ]
 
 export interface Allegato extends RecordBase {
@@ -328,4 +329,84 @@ export interface Comunicazione extends RecordBase {
 export interface TassoLegale extends RecordBase {
   anno: number
   tasso_percento: number
+}
+
+/* ====================== Tributi rateizzati ====================== */
+
+/** Società (o persona) che riceve avvisi bonari e cartelle: anagrafica separata dalle società proprietarie degli immobili. */
+export interface Contribuente extends RecordBase {
+  nome: string                  // nome breve usato dagli studi, es. "Montesacro"
+  alias: string[]               // nomi alternativi con cui compare nei file (es. "Re di Roma", "Colli")
+  ragione_sociale: string
+  codice_fiscale: string
+  partita_iva: string
+  responsabile: string          // chi decide rate e pagamenti (es. "Giuseppe")
+  email: string
+  email_cc: string
+  studio: string                // studio che segue la società (es. "DBI Milano")
+  societa_id: string            // collegamento facoltativo a una società della piattaforma immobili
+  conduttore_id: string         // collegamento facoltativo a un conduttore
+  note: string
+}
+
+export const TIPI_PRATICA: Opzione[] = [
+  { valore: 'avviso_bonario', etichetta: 'Avviso bonario' },
+  { valore: 'cartella', etichetta: 'Cartella' },
+  { valore: 'rottamazione', etichetta: 'Rottamazione' },
+  { valore: 'segnalazione_iva', etichetta: 'Segnalazione incoerenza IVA' },
+]
+
+export const STATI_PRATICA: Opzione[] = [
+  { valore: 'da_decidere', etichetta: 'Da decidere' },
+  { valore: 'richiesta_inviata', etichetta: 'Richiesta rate inviata' },
+  { valore: 'rate_concordate', etichetta: 'Rate concordate (piano da inserire)' },
+  { valore: 'rateizzato', etichetta: 'Rateizzato' },
+  { valore: 'pagato_unica', etichetta: 'Pagato in unica soluzione' },
+  { valore: 'estinto', etichetta: 'Estinto' },
+  { valore: 'decaduto', etichetta: 'Decaduto' },
+  { valore: 'ricorso', etichetta: 'Scaduto / ricorso / sgravio' },
+]
+
+/** Categorie degli allegati proposte nelle pratiche dei tributi. */
+export const CATEGORIE_ALLEGATO_TRIBUTI: Opzione[] = [
+  { valore: 'piano_rateizzo', etichetta: 'Piano di rateizzo (AdE / AdER)' }, { valore: 'avviso_tributo', etichetta: 'Avviso bonario / cartella' },
+  { valore: 'f24', etichetta: 'F24 / quietanza' }, { valore: 'altro', etichetta: 'Altro' },
+]
+
+export const PERIODICITA_RATE: Opzione[] = [
+  { valore: 'trimestrale', etichetta: 'Trimestrale' }, { valore: 'mensile', etichetta: 'Mensile' }, { valore: 'personalizzata', etichetta: 'Personalizzata' },
+]
+
+/** Una rata del piano: importi in centesimi, scadenza ISO. */
+export interface RataTributo {
+  numero: number
+  scadenza: string
+  quota_capitale_cent: number
+  sanzioni_cent: number
+  interessi_cent: number
+  totale_cent: number
+  pagata: boolean
+  pagata_il: string
+  note: string
+}
+
+/** Avviso bonario, cartella o rottamazione con il suo piano di rate (le rate stanno dentro la pratica). */
+export interface PraticaTributo extends RecordBase {
+  contribuente_id: string
+  tipo: string                  // TIPI_PRATICA
+  tributo: string               // es. "IVA II TRIM 25"
+  anno_rateizzo: number | null  // anno in cui è iniziato il piano (quello tra parentesi nell'Excel)
+  numero_atto: string           // codice avviso / numero cartella
+  data_notifica: string
+  termine_pagamento: string     // termine per pagare la prima rata o l'importo intero
+  data_elaborazione?: string    // data di elaborazione della comunicazione (dal PDF): serve per gli interessi
+  importo_cent: number | null   // importo richiesto dall'avviso
+  gia_versato_cent: number | null // solo segnalazioni IVA: quanto già versato
+  stato: string                 // STATI_PRATICA
+  rate_concordate: number | null
+  notificato_il: string         // data della mail al responsabile
+  sollecito_il: string
+  periodicita: string           // PERIODICITA_RATE
+  rate: RataTributo[]
+  note: string
 }

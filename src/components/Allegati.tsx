@@ -6,16 +6,15 @@
 import { useRef, useState } from 'react'
 import { FileText, Paperclip, Trash2, Upload } from 'lucide-react'
 import { CONFIG } from '../config'
-import { MODO_DEMO, caricaAllegato, eliminaFile, scaricaAllegato } from '../lib/github'
+import { eliminaFile, scaricaAllegato } from '../lib/github'
+import { controllaDimensione, salvaAllegato } from '../lib/allegati'
 import { useSessioneAttiva } from '../lib/sessione'
-import { aggiorna, attivi, campiModifica, campiNuovo, type NomeCollezione } from '../lib/store'
+import { aggiorna, attivi, campiModifica, type NomeCollezione } from '../lib/store'
 import { CATEGORIE_ALLEGATO, etichettaDi, type Allegato, type Opzione } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { formattaByte, formattaData } from '../lib/utils/formato'
 import { Avviso, Bottone, Riquadro } from './ui'
 import { useSoloLettura } from './SoloLettura'
-
-const LIMITE_DEMO = 2 * 1024 * 1024
 
 interface Props {
   collezione: NomeCollezione
@@ -25,9 +24,6 @@ interface Props {
   compatto?: boolean   // non più usato: aspetto unico in tutte le sezioni
 }
 
-function nomeSicuro(nome: string): string {
-  return nome.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 80)
-}
 
 export default function Allegati({ collezione, recordId, categorie = CATEGORIE_ALLEGATO, descrizione }: Props) {
   const { token, nome } = useSessioneAttiva()
@@ -45,17 +41,11 @@ export default function Allegati({ collezione, recordId, categorie = CATEGORIE_A
   async function carica(file: File | undefined) {
     if (!file) return
     setErrore(null)
-    if (file.size > CONFIG.allegatoMaxByte) { setErrore(`Il file supera ${formattaByte(CONFIG.allegatoMaxByte)}: comprimerlo prima di caricarlo.`); return }
-    if (MODO_DEMO && file.size > LIMITE_DEMO) { setErrore(`In modalità dimostrativa il limite è ${formattaByte(LIMITE_DEMO)} per file (il browser ha poco spazio). Online il limite sarà ${formattaByte(CONFIG.allegatoMaxByte)}.`); return }
+    const troppoGrande = controllaDimensione(file)
+    if (troppoGrande) { setErrore(troppoGrande); return }
     setInCorso('Caricamento…')
     try {
-      const base = campiNuovo(nome)
-      const anno = new Date().getFullYear()
-      const percorso = `allegati/${anno}/${base.id.slice(0, 8)}-${nomeSicuro(file.name)}`
-      await caricaAllegato(token, percorso, file, `${nome}: allegato "${file.name}" per ${descrizione}`)
-      await aggiorna<Allegato>(token, 'allegati', (r) => [...r, {
-        ...base, collezione, record_id: recordId, categoria, nome_file: file.name, percorso, dimensione_byte: file.size, tipo_mime: file.type, note: '',
-      }], `${nome}: registra allegato "${file.name}" per ${descrizione}`)
+      await salvaAllegato(token, nome, file, collezione, recordId, categoria, descrizione)
       if (inputRef.current) inputRef.current.value = ''
       if (file.size > CONFIG.allegatoAvvisoByte) setErrore(`Caricato. Nota: il file è grande (${formattaByte(file.size)}); per i prossimi conviene scansionare a risoluzione più bassa.`)
     } catch (e) { setErrore((e as Error).message) } finally { setInCorso(null) }

@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Download } from 'lucide-react'
 import { Bottone, IntestazionePagina, Riquadro } from '../components/ui'
+import SpazioOccupato from '../components/SpazioOccupato'
 import { esportaConsultazione } from '../lib/esportaCompleto'
 import { creaBackup, ripristinaBackup } from '../lib/backup'
 import { MODO_DEMO } from '../lib/github'
@@ -52,7 +53,7 @@ export default function Impostazioni() {
 
   return (
     <div>
-      <IntestazionePagina kicker="Strumenti" titolo="Impostazioni" sottotitolo="Sessione, utenti e permessi, esportazioni e copie di sicurezza." />
+      <IntestazionePagina kicker="Strumenti" titolo="Impostazioni" sottotitolo="Sessione, utenti e permessi, esportazioni, copie di sicurezza e spazio occupato." />
       <div className="grid items-start gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))' }}>
         <div className="flex flex-col gap-8">
           {sessioneBox}
@@ -75,6 +76,8 @@ export default function Impostazioni() {
             </div>
             {esito && <div className="mt-4"><Avviso tipo={esito.startsWith('Errore') ? 'errore' : 'ok'}>{esito}</Avviso></div>}
           </Riquadro>
+
+          <SpazioOccupato />
           </>}
 
           {MODO_DEMO && admin && (

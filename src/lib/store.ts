@@ -15,6 +15,7 @@ export type NomeCollezione =
   | 'movimenti'
   | 'voci_condominiali' | 'piani_rientro' | 'allegati'
   | 'comunicazioni' | 'tassi_legali'
+  | 'contribuenti' | 'pratiche_tributi'
 
 export interface RecordBase {
   id: string

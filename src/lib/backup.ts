@@ -1,7 +1,7 @@
 /** Backup completo in JSON (tutte le collezioni, inclusi i record eliminati) e ripristino. */
 import { aggiorna, carica, type NomeCollezione, type RecordBase } from './store'
 
-export const COLLEZIONI: NomeCollezione[] = ['societa', 'immobili', 'conduttori', 'condomini', 'contratti', 'annualita', 'movimenti', 'voci_condominiali', 'piani_rientro', 'allegati', 'comunicazioni', 'tassi_legali']
+export const COLLEZIONI: NomeCollezione[] = ['societa', 'immobili', 'conduttori', 'condomini', 'contratti', 'annualita', 'movimenti', 'voci_condominiali', 'piani_rientro', 'allegati', 'comunicazioni', 'tassi_legali', 'contribuenti', 'pratiche_tributi']
 
 export interface Backup { versione: 1; creato_il: string; creato_da: string; collezioni: Record<string, RecordBase[]> }
 

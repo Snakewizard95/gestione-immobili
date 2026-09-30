@@ -12,7 +12,8 @@ const API = 'https://api.github.com'
  * schermate prima della pubblicazione. Nessun dato lascia il computer.
  */
 export const TOKEN_DEMO = 'DEMO'
-export const MODO_DEMO = Object.keys(CONFIG.tokenCifrato.utenti ?? {}).length === 0
+// `npm run prova` forza la modalità dimostrativa anche con le password configurate: per provare novità senza toccare i dati veri
+export const MODO_DEMO = import.meta.env.VITE_DEMO === '1' || Object.keys(CONFIG.tokenCifrato.utenti ?? {}).length === 0
 const PREFISSO_DEMO = 'gestione-immobili.demo.'
 
 function demoLeggi(percorso: string): FileLetto | null {
@@ -176,9 +177,13 @@ export async function scaricaAllegato(token: string, percorso: string): Promise<
   return blob.blob()
 }
 
-/** Elimina fisicamente un file (usato solo per allegati caricati per errore). */
+/** Elimina fisicamente un file. Se lo SHA non è noto lo legge prima (GitHub lo richiede per cancellare). */
 export async function eliminaFile(token: string, percorso: string, sha: string, messaggio: string): Promise<void> {
   if (token === TOKEN_DEMO) { localStorage.removeItem(PREFISSO_DEMO + percorso); demoScrivi('_eliminazioni', sha, messaggio); return }
+  if (!sha) {
+    const meta = await richiesta(token, `/contents/${percorso}?ref=${CONFIG.ramo}`)
+    sha = ((await meta.json()) as { sha: string }).sha
+  }
   await richiesta(token, `/contents/${percorso}`, {
     method: 'DELETE',
     body: JSON.stringify({ message: messaggio, sha, branch: CONFIG.ramo }),
@@ -199,4 +204,29 @@ export async function listaCommit(token: string, percorso?: string, quanti = 50)
 export async function leggiFileAlCommit(token: string, percorso: string, sha: string): Promise<string> {
   const r = await richiesta(token, `/contents/${percorso}?ref=${sha}`, {}, 'application/vnd.github.raw+json')
   return r.text()
+}
+
+export interface SpazioOccupato {
+  fonte: 'github' | 'browser'
+  usato_byte: number
+  limite_byte: number          // GitHub: limite consigliato (1 GB); browser: spazio disponibile (circa 5 MB)
+}
+
+/**
+ * Spazio occupato dal repository dati. Su GitHub il valore comprende tutta la storia (anche i file eliminati)
+ * e viene aggiornato da GitHub con qualche ritardo. In modalità dimostrativa: spazio usato nel browser.
+ */
+export async function spazioRepository(token: string): Promise<SpazioOccupato> {
+  if (token === TOKEN_DEMO) {
+    let caratteri = 0
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i) ?? ''
+      caratteri += k.length + (localStorage.getItem(k)?.length ?? 0)
+    }
+    // Chrome e Firefox concedono circa 5 milioni di caratteri per sito
+    return { fonte: 'browser', usato_byte: caratteri, limite_byte: 5 * 1024 * 1024 }
+  }
+  const r = await richiesta(token, '')
+  const { size } = (await r.json()) as { size: number }   // in KB
+  return { fonte: 'github', usato_byte: size * 1024, limite_byte: 1024 * 1024 * 1024 }
 }
