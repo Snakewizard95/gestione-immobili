@@ -8,18 +8,19 @@ import { Plus, Printer } from 'lucide-react'
 import Calendario from '../components/tributi/Calendario'
 import Contribuenti from '../components/tributi/Contribuenti'
 import EditorPiano from '../components/tributi/EditorPiano'
+import DoppioniPiani from '../components/tributi/DoppioniPiani'
 import { SoloSeModifica } from '../components/SoloLettura'
 import { BarraPagato, EtichettaStato, Scomposizione } from '../components/tributi/comuni'
 import SchedaPiano from '../components/tributi/SchedaPiano'
 import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Gruppo, IntestazionePagina, Segmentato, Tabella, TavolaKpi, Vuoto } from '../components/ui'
 import { TIPI_PRATICA, etichettaDi, type Contribuente, type PraticaTributo } from '../lib/tipi'
-import { daInserire, descriviPratica, gestita, inCorso, percentualePagata, riepilogoPratiche, riepilogoRate, statoEffettivo } from '../lib/tributi'
+import { daInserire, decaduto, trovaDoppioni, descriviPratica, gestita, inAttesaCartella, inCorso, residuoDecaduto, percentualePagata, riepilogoPratiche, riepilogoRate, statoEffettivo } from '../lib/tributi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { attivi } from '../lib/store'
 import { formattaData, formattaEuro, oggiIso } from '../lib/utils/formato'
 
 type Scheda = 'calendario' | 'piani' | 'societa' | 'anagrafica'
-type FiltroPiani = 'in_corso' | 'estinti' | 'da_completare' | 'tutte'
+type FiltroPiani = 'in_corso' | 'estinti' | 'da_completare' | 'decaduti' | 'tutte'
 
 export default function PaginaTributi() {
   const { dati, caricamento, errore } = useCollezioni(['contribuenti', 'pratiche_tributi'])
@@ -28,7 +29,8 @@ export default function PaginaTributi() {
   const [ricerca, setRicerca] = useState('')
   const [contribuenteScelto, setContribuenteScelto] = useState('')
   const [aperta, setAperta] = useState<string | null>(null)
-  const [editor, setEditor] = useState<{ base: PraticaTributo | null; contribuente?: string } | null>(null)
+  const [doppi, setDoppi] = useState(false)
+  const [editor, setEditor] = useState<{ base: PraticaTributo | null; contribuente?: string; tipo?: string; tributo?: string; nota?: string } | null>(null)
 
   const contribuenti = attivi(dati<Contribuente>('contribuenti')).sort((a, b) => a.nome.localeCompare(b.nome, 'it'))
   const pratiche = attivi(dati<PraticaTributo>('pratiche_tributi')).filter(gestita)
@@ -43,6 +45,7 @@ export default function PaginaTributi() {
     if (filtro === 'in_corso' && !inCorso(p)) return false
     if (filtro === 'estinti' && statoEffettivo(p) !== 'estinto') return false
     if (filtro === 'da_completare' && !(p.stato === 'rate_concordate' && p.rate.length === 0)) return false
+    if (filtro === 'decaduti' && !decaduto(p)) return false
     if (q) {
       const c = contribuenti.find((x) => x.id === p.contribuente_id)
       const testo = [p.tributo, c?.nome, c?.responsabile, ...(c?.alias ?? []), etichettaDi(TIPI_PRATICA, p.tipo)].join(' ').toLowerCase()
@@ -56,7 +59,7 @@ export default function PaginaTributi() {
     .filter((g) => g.pratiche.length > 0)
 
   const conteggio = (f: FiltroPiani) => pratiche.filter((p) =>
-    f === 'in_corso' ? inCorso(p) : f === 'estinti' ? statoEffettivo(p) === 'estinto' : f === 'da_completare' ? p.stato === 'rate_concordate' && p.rate.length === 0 : true).length
+    f === 'in_corso' ? inCorso(p) : f === 'estinti' ? statoEffettivo(p) === 'estinto' : f === 'da_completare' ? p.stato === 'rate_concordate' && p.rate.length === 0 : f === 'decaduti' ? decaduto(p) : true).length
 
   return (
     <div>
@@ -72,6 +75,13 @@ export default function PaginaTributi() {
         <Vuoto>Nessun tributo inserito. Premi <b>Nuovo piano</b> per inserirne uno, oppure importa i file Excel da <b>Importa da Excel</b> → scheda <b>Tributi rateizzati</b>.</Vuoto>
       ) : (
         <>
+          {scheda === 'calendario' && pratiche.some(inAttesaCartella) && (
+            <div className="mb-5"><Avviso tipo="info">
+              {pratiche.filter(inAttesaCartella).length} {pratiche.filter(inAttesaCartella).length === 1 ? 'piano decaduto' : 'piani decaduti'}: le rate non pagate
+              ({formattaEuro(pratiche.filter(inAttesaCartella).reduce((t, p) => t + residuoDecaduto(p).totale_cent, 0))}) non sono tra le scadenze, arriverà una cartella esattoriale.
+              {' '}<button type="button" className="underline" onClick={() => { setFiltro('decaduti'); setContribuenteScelto(''); setScheda('piani') }}>Vedi i piani decaduti</button>
+            </Avviso></div>
+          )}
           {scheda === 'calendario' && <Calendario contribuenti={contribuenti} pratiche={pratiche} onApriPratica={setAperta} />}
 
           {(scheda === 'piani' || scheda === 'societa') && <TavolaKpi celle={[
@@ -88,6 +98,7 @@ export default function PaginaTributi() {
                   { valore: 'in_corso', etichetta: `In corso (${conteggio('in_corso')})` },
                   { valore: 'da_completare', etichetta: `Rate da inserire (${conteggio('da_completare')})` },
                   { valore: 'estinti', etichetta: `Estinti (${conteggio('estinti')})` },
+                  { valore: 'decaduti', etichetta: `Decaduti · cartella in arrivo (${conteggio('decaduti')})` },
                   { valore: 'tutte', etichetta: `Tutte (${conteggio('tutte')})` },
                 ]} />
                 <select value={contribuenteScelto} onChange={(e) => setContribuenteScelto(e.target.value)} className="input w-auto">
@@ -95,6 +106,9 @@ export default function PaginaTributi() {
                   {contribuenti.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
                 <BarraRicerca valore={ricerca} onChange={setRicerca} segnaposto="Cerca società, tributo, responsabile…" />
+                <SoloSeModifica>
+                  {(() => { const n = trovaDoppioni(pratiche).length; return n > 0 && <Bottone variante="secondario" className="ml-auto" onClick={() => setDoppi(true)}>Trova piani doppi ({n})</Bottone> })()}
+                </SoloSeModifica>
               </div>
               {gruppi.length === 0 ? <Vuoto>Nessuna pratica con questi filtri.</Vuoto> : gruppi.map(({ c, pratiche: lista }) => {
                 const rg = riepilogoPratiche(lista, oggi)
@@ -118,8 +132,8 @@ export default function PaginaTributi() {
                       { chiave: 'anno', etichetta: 'Anno', render: (p) => p.anno_rateizzo ?? (p.data_notifica ? p.data_notifica.slice(0, 4) : '—') },
                       { chiave: 'rate', etichetta: 'Rate', render: (p) => { const r = riepilogoRate(p.rate, oggi); return p.rate.length ? `${r.ratePagate}/${r.rate}` : p.rate_concordate ? `${p.rate_concordate} concordate` : '—' } },
                       { chiave: 'totale', etichetta: 'Totale', allinea: 'dx', render: (p) => formattaEuro(p.rate.length ? riepilogoRate(p.rate, oggi).totale.totale_cent : p.importo_cent) },
-                      { chiave: 'residuo', etichetta: 'Da pagare', allinea: 'dx', render: (p) => p.rate.length ? formattaEuro(riepilogoRate(p.rate, oggi).residuo.totale_cent) : '—' },
-                      { chiave: 'prossima', etichetta: 'Prossima rata', render: (p) => { const r = riepilogoRate(p.rate, oggi); return r.scadute.length ? <Etichetta tono="rosso">{r.scadute.length} scadut{r.scadute.length === 1 ? 'a' : 'e'}</Etichetta> : r.prossima ? `${formattaData(r.prossima.scadenza)} · ${formattaEuro(r.prossima.totale_cent)}` : '—' } },
+                      { chiave: 'residuo', etichetta: 'Da pagare', allinea: 'dx', render: (p) => decaduto(p) ? <span className="text-neutro-700" title="Non più a rate: arriverà una cartella">in cartella {formattaEuro(residuoDecaduto(p).totale_cent)}</span> : p.rate.length ? formattaEuro(riepilogoRate(p.rate, oggi).residuo.totale_cent) : '—' },
+                      { chiave: 'prossima', etichetta: 'Prossima rata', render: (p) => { if (decaduto(p)) return <span className="text-[13px]">{p.cartella_arrivata_il ? `Cartella arrivata il ${formattaData(p.cartella_arrivata_il)}` : `Decaduto${p.decaduto_il ? ` il ${formattaData(p.decaduto_il)}` : ''}: cartella in arrivo`}</span>; const r = riepilogoRate(p.rate, oggi); return r.scadute.length ? <Etichetta tono="rosso">{r.scadute.length} scadut{r.scadute.length === 1 ? 'a' : 'e'}</Etichetta> : r.prossima ? `${formattaData(r.prossima.scadenza)} · ${formattaEuro(r.prossima.totale_cent)}` : '—' } },
                       { chiave: 'stato', etichetta: 'Stato', render: (p) => <EtichettaStato pratica={p} /> },
                     ]} />
                   </Gruppo>
@@ -134,12 +148,20 @@ export default function PaginaTributi() {
 
       <Finestra kicker={contribuenti.find((c) => c.id === praticaAperta?.contribuente_id)?.nome} titolo={praticaAperta ? descriviPratica(praticaAperta) : ''} aperta={!!praticaAperta} onChiudi={() => setAperta(null)} larga>
         {praticaAperta && <SchedaPiano pratica={praticaAperta} contribuente={contribuenti.find((c) => c.id === praticaAperta.contribuente_id)}
-          onModifica={() => { setEditor({ base: praticaAperta }); setAperta(null) }} />}
+          onModifica={() => { setEditor({ base: praticaAperta }); setAperta(null) }}
+          onCartellaArrivata={() => {
+            setEditor({ base: null, contribuente: praticaAperta.contribuente_id, tipo: 'cartella', tributo: `Cartella ${praticaAperta.tributo}`, nota: `Cartella per il piano decaduto "${praticaAperta.tributo}"${praticaAperta.decaduto_il ? ` (decaduto il ${formattaData(praticaAperta.decaduto_il)})` : ''}.` })
+            setAperta(null)
+          }} />}
+      </Finestra>
+
+      <Finestra kicker="Tributi rateizzati" titolo="Piani doppi" aperta={doppi} onChiudi={() => setDoppi(false)} larga>
+        {doppi && <DoppioniPiani pratiche={pratiche} contribuenti={contribuenti} />}
       </Finestra>
 
       <Finestra kicker="Tributi rateizzati" titolo={editor?.base ? (editor.base.rate.length ? `Modifica piano — ${descriviPratica(editor.base)}` : `Inserisci il piano — ${editor.base.tributo}`) : 'Nuovo piano di rateizzo'}
         aperta={editor !== null} onChiudi={() => setEditor(null)} larga>
-        {editor && <EditorPiano base={editor.base} contribuenteIniziale={editor.contribuente} contribuenti={contribuenti} pratiche={pratiche}
+        {editor && <EditorPiano base={editor.base} contribuenteIniziale={editor.contribuente} tipoIniziale={editor.tipo} tributoIniziale={editor.tributo} notaIniziale={editor.nota} contribuenti={contribuenti} pratiche={pratiche}
           onChiudi={() => setEditor(null)} onSalvato={(id) => { setEditor(null); setAperta(id) }} />}
       </Finestra>
     </div>
@@ -176,6 +198,7 @@ function RiepilogoSocieta({ contribuenti, pratiche, onApri }: { contribuenti: Co
           </span>
         ) },
         { chiave: 'perc', etichetta: '% pagato', render: (x) => <BarraPagato percentuale={percentualePagata(x.r)} /> },
+        { chiave: 'cartella', etichetta: 'Decaduti (in cartella)', allinea: 'dx', render: (x) => x.r.decaduto.totale_cent ? <span className="text-neutro-700">{formattaEuro(x.r.decaduto.totale_cent)}</span> : '—' },
         { chiave: 'scadute', etichetta: 'Scadute', allinea: 'dx', render: (x) => x.r.scadute.length ? <Etichetta tono="rosso">{x.r.scadute.length} · {formattaEuro(x.r.scadute.reduce((s, y) => s + y.totale_cent, 0))}</Etichetta> : '—' },
         { chiave: 'prossima', etichetta: 'Prossima rata', render: (x) => x.r.prossima ? `${formattaData(x.r.prossima.scadenza)} · ${formattaEuro(x.r.prossima.totale_cent)}` : '—' },
         { chiave: 'sospeso', etichetta: 'Piani da inserire', allinea: 'dx', render: (x) => x.sospeso || '—' },

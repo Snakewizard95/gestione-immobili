@@ -18,6 +18,7 @@ export interface Riepilogo {
   ratePagate: number
   scadute: RataTributo[]        // scadute e non pagate
   prossima: RataTributo | null  // prima rata non pagata con scadenza da oggi in poi
+  decaduto: Totali              // rate non pagate dei piani decaduti: non più da pagare a rate, finiranno in una cartella
 }
 
 const zero = (): Totali => ({ quota_capitale_cent: 0, sanzioni_cent: 0, interessi_cent: 0, totale_cent: 0 })
@@ -38,7 +39,7 @@ export function sommaTotali(a: Totali, b: Totali): Totali {
 
 /** Totali, pagato e residuo di un elenco di rate. */
 export function riepilogoRate(rate: RataTributo[], oggi = oggiIso()): Riepilogo {
-  const r: Riepilogo = { totale: zero(), pagato: zero(), residuo: zero(), rate: rate.length, ratePagate: 0, scadute: [], prossima: null }
+  const r: Riepilogo = { totale: zero(), pagato: zero(), residuo: zero(), rate: rate.length, ratePagate: 0, scadute: [], prossima: null, decaduto: zero() }
   for (const x of rate) {
     somma(r.totale, x)
     if (x.pagata) { somma(r.pagato, x); r.ratePagate++ } else {
@@ -50,10 +51,28 @@ export function riepilogoRate(rate: RataTributo[], oggi = oggiIso()): Riepilogo 
   return r
 }
 
-/** Riepilogo di più pratiche insieme (es. tutte quelle di una società). */
+/**
+ * Riepilogo di più pratiche insieme (es. tutte quelle di una società). Le rate non pagate dei piani decaduti
+ * non contano come "da pagare" né come scadute: finiscono in `decaduto` (arriverà una cartella).
+ */
 export function riepilogoPratiche(pratiche: PraticaTributo[], oggi = oggiIso()): Riepilogo {
-  const tutte = pratiche.flatMap((p) => p.rate)
-  return riepilogoRate(tutte, oggi)
+  const r = riepilogoRate(pratiche.filter((p) => !decaduto(p)).flatMap((p) => p.rate), oggi)
+  for (const x of pratiche.filter(decaduto).flatMap((p) => p.rate)) {
+    somma(r.totale, x); r.rate++
+    if (x.pagata) { somma(r.pagato, x); r.ratePagate++ } else somma(r.decaduto, x)
+  }
+  return r
+}
+
+/** Piano decaduto (rate non pagate in tempo): le rate rimaste non sono più scadenze, arriverà una cartella. */
+export const decaduto = (p: PraticaTributo) => p.stato === 'decaduto'
+
+/** Piano decaduto per cui la cartella esattoriale non è ancora arrivata. */
+export const inAttesaCartella = (p: PraticaTributo) => decaduto(p) && !p.cartella_arrivata_il
+
+/** Rate non pagate di un piano decaduto (quanto resta da riscuotere con la cartella, senza le maggiorazioni). */
+export function residuoDecaduto(p: PraticaTributo): Totali {
+  return totaliDi(p.rate.filter((r) => !r.pagata))
 }
 
 /** Pratiche con un piano di rate (in corso o estinto). */
@@ -98,9 +117,10 @@ export function descriviPratica(p: PraticaTributo): string {
 
 export interface RataDi { pratica: PraticaTributo; rata: RataTributo }
 
-/** Tutte le rate con la pratica di appartenenza, in ordine di scadenza. */
+/** Tutte le rate (dei piani non decaduti) con la pratica di appartenenza, in ordine di scadenza. */
 export function tutteLeRate(pratiche: PraticaTributo[]): RataDi[] {
-  return pratiche.flatMap((p) => p.rate.map((rata) => ({ pratica: p, rata }))).sort((a, b) => a.rata.scadenza.localeCompare(b.rata.scadenza))
+  // I piani decaduti non hanno più scadenze
+  return pratiche.filter((p) => !decaduto(p)).flatMap((p) => p.rate.map((rata) => ({ pratica: p, rata }))).sort((a, b) => a.rata.scadenza.localeCompare(b.rata.scadenza))
 }
 
 /** Rate con scadenza tra `da` e `a` compresi (date ISO). */
@@ -139,4 +159,94 @@ export async function impostaRatePagate(
     const stato = tutte ? 'estinto' : p.stato === 'estinto' ? 'rateizzato' : p.stato
     return { ...p, rate, stato, ...campiModifica(nome) }
   }), `${nome}: ${voci.length === 1 ? 'rata' : voci.length + ' rate'} ${pagata ? 'pagat' + (voci.length === 1 ? 'a' : 'e') : 'da pagare'} — ${descrizione}`)
+}
+
+/* ---------------------------- piani doppi ---------------------------- */
+
+/** Importo del piano calcolato dalle rate (imposta + sanzioni, senza interessi) = importo dilazionato del prospetto. */
+export const importoDelPiano = (p: Pick<PraticaTributo, 'rate'>) => p.rate.reduce((s, r) => s + r.quota_capitale_cent + r.sanzioni_cent, 0)
+
+/** Piano letto da un PDF (più preciso dell'Excel): ha la data di elaborazione o la nota di importazione dal PDF. */
+export const daPdf = (p: PraticaTributo) => !!p.data_elaborazione || /dal PDF/i.test(p.note)
+
+/**
+ * Vero se due piani sono lo stesso rateizzo: stessa società, importo uguale a meno di qualche centesimo
+ * (Excel e PDF arrotondano in modo diverso: tolleranza 1 €) e stesso numero di rate o stessa prima scadenza.
+ * Due avvisi diversi arrivati insieme hanno le stesse date ma importi diversi: non vengono confusi.
+ */
+export function stessoPiano(a: Pick<PraticaTributo, 'contribuente_id' | 'rate'>, b: Pick<PraticaTributo, 'contribuente_id' | 'rate'>): boolean {
+  if (a.contribuente_id !== b.contribuente_id || !a.rate.length || !b.rate.length) return false
+  const ia = importoDelPiano(a), ib = importoDelPiano(b)
+  if (Math.abs(ia - ib) > 100) return false
+  return a.rate.length === b.rate.length || a.rate[0].scadenza === b.rate[0].scadenza
+}
+
+/** Porta sul piano `tieni` i pagamenti (e i dati mancanti) dei suoi doppioni: una rata pagata in uno dei due resta pagata. */
+export function unisciPiani(tieni: PraticaTributo, altri: PraticaTributo[]): PraticaTributo {
+  const rate = tieni.rate.map((r) => {
+    const gemelle = altri.flatMap((a) => a.rate).filter((x) => x.numero === r.numero || x.scadenza === r.scadenza)
+    const pagata = gemelle.find((x) => x.pagata)
+    return r.pagata || !pagata ? r : { ...r, pagata: true, pagata_il: r.pagata_il || pagata.pagata_il }
+  })
+  const primo = <K extends keyof PraticaTributo>(k: K) => tieni[k] || altri.map((a) => a[k]).find(Boolean) || tieni[k]
+  const tutte = rate.length > 0 && rate.every((x) => x.pagata)
+  return {
+    ...tieni, rate,
+    data_notifica: primo('data_notifica'), termine_pagamento: primo('termine_pagamento'), numero_atto: primo('numero_atto'),
+    stato: tieni.stato === 'decaduto' ? 'decaduto' : tutte ? 'estinto' : 'rateizzato',
+  }
+}
+
+export interface GruppoDoppi { tieni: PraticaTributo; togli: PraticaTributo[]; ratePagateAggiunte: number }
+
+/** Gruppi di piani doppi: si tiene la versione dal PDF (o, a parità, quella con più rate segnate pagate). */
+export function trovaDoppioni(pratiche: PraticaTributo[]): GruppoDoppi[] {
+  const conRate = pratiche.filter((p) => !p.eliminato_il && p.rate.length > 0)
+  const visti = new Set<string>()
+  const gruppi: GruppoDoppi[] = []
+  for (const p of conRate) {
+    if (visti.has(p.id)) continue
+    const gruppo = conRate.filter((q) => !visti.has(q.id) && (q.id === p.id || stessoPiano(p, q)))
+    if (gruppo.length < 2) continue
+    gruppo.forEach((q) => visti.add(q.id))
+    const ordinati = [...gruppo].sort((a, b) => Number(daPdf(b)) - Number(daPdf(a)) || b.rate.filter((r) => r.pagata).length - a.rate.filter((r) => r.pagata).length)
+    const [tieni, ...togli] = ordinati
+    const unito = unisciPiani(tieni, togli)
+    gruppi.push({ tieni: unito, togli, ratePagateAggiunte: unito.rate.filter((r) => r.pagata).length - tieni.rate.filter((r) => r.pagata).length })
+  }
+  return gruppi
+}
+
+/* ---------------------------- rate non pagate: recupero entro la rata successiva ---------------------------- */
+
+/**
+ * Situazione di una rata. Per gli avvisi bonari una rata non pagata si può ancora versare (con riconteggio di sanzione
+ * e interessi) entro la scadenza della rata successiva: finché quel termine non è passato è "da recuperare"; dopo è
+ * "oltre il termine" (il piano rischia la decadenza). Per cartelle e rottamazioni resta semplicemente "scaduta".
+ */
+export type SituazioneRata =
+  | { tipo: 'pagata' }
+  | { tipo: 'da_pagare' }
+  | { tipo: 'da_recuperare'; entro: string }
+  | { tipo: 'oltre_termine'; entro: string | null }
+
+export function situazioneRata(p: PraticaTributo, r: RataTributo, oggi = oggiIso()): SituazioneRata {
+  if (r.pagata) return { tipo: 'pagata' }
+  if (r.scadenza >= oggi) return { tipo: 'da_pagare' }
+  const entro = termineRegolarizzazione(p, r)
+  return entro && entro >= oggi ? { tipo: 'da_recuperare', entro } : { tipo: 'oltre_termine', entro }
+}
+
+/** Voce del calendario: una rata alla sua scadenza, oppure il recupero di una rata saltata alla scadenza della successiva. */
+export interface VoceCalendario extends RataDi { data: string; recupero: boolean }
+
+/** Voci del calendario tra due date: rate in scadenza più i recuperi delle rate saltate ancora in tempo. */
+export function vociCalendario(pratiche: PraticaTributo[], da: string, a: string, oggi = oggiIso()): VoceCalendario[] {
+  const tutte = tutteLeRate(pratiche)
+  const voci: VoceCalendario[] = tutte.filter((x) => x.rata.scadenza >= da && x.rata.scadenza <= a).map((x) => ({ ...x, data: x.rata.scadenza, recupero: false }))
+  for (const x of tutte) {
+    const s = situazioneRata(x.pratica, x.rata, oggi)
+    if (s.tipo === 'da_recuperare' && s.entro >= da && s.entro <= a) voci.push({ ...x, data: s.entro, recupero: true })
+  }
+  return voci.sort((p, q) => p.data.localeCompare(q.data) || Number(p.recupero) - Number(q.recupero))
 }

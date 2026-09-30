@@ -64,28 +64,31 @@ interface Props {
   contribuenti: Contribuente[]
   pratiche: PraticaTributo[]
   contribuenteIniziale?: string
+  tipoIniziale?: string                  // es. "cartella" quando arriva la cartella di un piano decaduto
+  tributoIniziale?: string
+  notaIniziale?: string
   onChiudi: () => void
   onSalvato: (id: string) => void
 }
 
-export default function EditorPiano({ base: baseIniziale, contribuenti, pratiche, contribuenteIniziale, onChiudi, onSalvato }: Props) {
+export default function EditorPiano({ base: baseIniziale, contribuenti, pratiche, contribuenteIniziale, tipoIniziale, tributoIniziale, notaIniziale, onChiudi, onSalvato }: Props) {
   const { token, nome } = useSessioneAttiva()
   const [base, setBase] = useState<PraticaTributo | null>(baseIniziale)
   const [contribuenteId, setContribuenteId] = useState(baseIniziale?.contribuente_id ?? contribuenteIniziale ?? '')
   const [nuovaSoc, setNuovaSoc] = useState({ nome: '', responsabile: '', email: '', ragione_sociale: '' })
-  const [tipo, setTipo] = useState(baseIniziale?.tipo ?? 'avviso_bonario')
-  const [tributo, setTributo] = useState(baseIniziale?.tributo ?? '')
+  const [tipo, setTipo] = useState(baseIniziale?.tipo ?? tipoIniziale ?? 'avviso_bonario')
+  const [tributo, setTributo] = useState(baseIniziale?.tributo ?? tributoIniziale ?? '')
   const [notifica, setNotifica] = useState(baseIniziale?.data_notifica ?? '')
   const [elaborazione, setElaborazione] = useState(baseIniziale?.data_elaborazione ?? '')
   const [importo, setImporto] = useState<number | null>(baseIniziale?.importo_cent ?? null)
   const [atto, setAtto] = useState(baseIniziale?.numero_atto ?? '')
   const [termine, setTermine] = useState(baseIniziale?.termine_pagamento ?? '')
-  const [note, setNote] = useState(baseIniziale?.note ?? '')
+  const [note, setNote] = useState(baseIniziale?.note ?? notaIniziale ?? '')
   const [rate, setRate] = useState<RataTributo[]>(baseIniziale?.rate ?? [])
   // Parametri del calcolo automatico
   const [nRate, setNRate] = useState<number>(baseIniziale?.rate.length || baseIniziale?.rate_concordate || 10)
   const [primaScadenza, setPrimaScadenza] = useState(baseIniziale?.rate[0]?.scadenza ?? '')
-  const [periodicita, setPeriodicita] = useState<'trimestrale' | 'mensile'>(baseIniziale?.periodicita === 'mensile' ? 'mensile' : 'trimestrale')
+  const [periodicita, setPeriodicita] = useState<'trimestrale' | 'mensile'>(baseIniziale?.periodicita === 'mensile' || tipoIniziale === 'cartella' ? 'mensile' : 'trimestrale')
   const [tasso, setTasso] = useState(3.5)
   const [sanzioniPerc, setSanzioniPerc] = useState(10)
   // PDF

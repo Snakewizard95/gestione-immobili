@@ -363,7 +363,7 @@ export const STATI_PRATICA: Opzione[] = [
   { valore: 'rateizzato', etichetta: 'Rateizzato' },
   { valore: 'pagato_unica', etichetta: 'Pagato in unica soluzione' },
   { valore: 'estinto', etichetta: 'Estinto' },
-  { valore: 'decaduto', etichetta: 'Decaduto' },
+  { valore: 'decaduto', etichetta: 'Decaduto (cartella in arrivo)' },
   { valore: 'ricorso', etichetta: 'Scaduto / ricorso / sgravio' },
 ]
 
@@ -400,6 +400,8 @@ export interface PraticaTributo extends RecordBase {
   data_notifica: string
   termine_pagamento: string     // termine per pagare la prima rata o l'importo intero
   data_elaborazione?: string    // data di elaborazione della comunicazione (dal PDF): serve per gli interessi
+  decaduto_il?: string          // piano decaduto: le rate non pagate escono dalle scadenze, in attesa della cartella
+  cartella_arrivata_il?: string // data di arrivo della cartella esattoriale per un piano decaduto
   importo_cent: number | null   // importo richiesto dall'avviso
   gia_versato_cent: number | null // solo segnalazioni IVA: quanto già versato
   stato: string                 // STATI_PRATICA

@@ -22,6 +22,7 @@ import { campiNuovo } from './store'
 import type { Contribuente, PraticaTributo, RataTributo } from './tipi'
 import type { PianoPdf } from './pdfRateizzo'
 import { rateDaPdf } from './rateTributi'
+import { daPdf, importoDelPiano, stessoPiano, unisciPiani } from './tributi'
 
 type Cella = unknown
 type Riga = Cella[]
@@ -91,7 +92,7 @@ export interface EsitoPdf {
   tributo: string
   importo_cent: number
   n_rate: number
-  esito: 'nuovo' | 'completa' | 'gia_presente' | 'doppione'
+  esito: 'nuovo' | 'completa' | 'aggiorna' | 'gia_presente' | 'doppione'
   dettaglio: string
 }
 
@@ -326,8 +327,6 @@ export interface PdfCartella { percorso: string; pdf: PianoPdf }
 
 export interface FileTributi { sospeso?: ArrayBuffer; rateizzi?: ArrayBuffer; pdf?: PdfCartella[] }
 
-/** Somma di imposta e sanzioni delle rate (= importo dilazionato del prospetto). */
-const importoRate = (p: PraticaTributo) => p.rate.reduce((s, r) => s + r.quota_capitale_cent + r.sanzioni_cent, 0)
 
 /**
  * Aggiunge i piani letti dai PDF della cartella: società dalla prima cartella del percorso che corrisponde a una
@@ -336,9 +335,8 @@ const importoRate = (p: PraticaTributo) => p.rate.reduce((s, r) => s + r.quota_c
  * saltato; una pratica con "rate decise" della stessa società e con lo stesso importo (o lo stesso tributo) viene completata.
  */
 function aggiungiPianiDaPdf(
-  elenco: PdfCartella[], rubrica: Rubrica, nuove: PraticaTributo[], esistenti: PraticaTributo[], utente: string,
-): { aggiornate: PraticaTributo[]; esiti: EsitoPdf[] } {
-  const aggiornate: PraticaTributo[] = []
+  elenco: PdfCartella[], rubrica: Rubrica, nuove: PraticaTributo[], esistenti: PraticaTributo[], aggiornate: PraticaTributo[], utente: string,
+): EsitoPdf[] {
   const esiti: EsitoPdf[] = []
   const visti = new Set<string>()
   const tutte = () => [...nuove, ...esistenti.filter((p) => !p.eliminato_il && !aggiornate.some((a) => a.id === p.id)), ...aggiornate]
@@ -366,10 +364,22 @@ function aggiungiPianiDaPdf(
     visti.add(chiave)
 
     const mie = tutte().filter((p) => p.contribuente_id === c!.id)
-    const gia = mie.find((p) => p.rate.length > 0 && (Math.abs(importoRate(p) - pdf.importo_cent) <= 100 || (p.rate[0]?.scadenza === primo && p.rate.length === pdf.n_rate)))
-    if (gia) { esiti.push({ ...base, esito: 'gia_presente', dettaglio: `Già presente: ${gia.tributo}` }); continue }
-
     const rate = rateDaPdf(pdf, 10)
+    const gia = mie.find((p) => stessoPiano(p, { contribuente_id: c!.id, rate }))
+    if (gia && daPdf(gia)) { esiti.push({ ...base, esito: 'gia_presente', dettaglio: `Già presente: ${gia.tributo}` }); continue }
+    if (gia) {
+      // Piano già presente dall'Excel: si aggiorna con i dati del PDF (più precisi), tenendo le rate già segnate pagate
+      const aggiornato = unisciPiani({
+        ...gia, rate, importo_cent: pdf.importo_cent, data_elaborazione: pdf.data_elaborazione, data_notifica: gia.data_notifica || pdf.data_ricevimento,
+        note: [gia.note, `Aggiornato con il PDF "${percorso}".`].filter(Boolean).join(' '), modificato_il: new Date().toISOString(), modificato_da: utente,
+      }, [gia])
+      const i = nuove.findIndex((p) => p.id === gia.id)
+      if (i >= 0) nuove[i] = aggiornato
+      else { const k = aggiornate.findIndex((p) => p.id === gia.id); if (k >= 0) aggiornate[k] = aggiornato; else aggiornate.push(aggiornato) }
+      esiti.push({ ...base, esito: 'aggiorna', dettaglio: `Aggiorna "${gia.tributo}" con i dati del PDF (pagamenti mantenuti)` })
+      continue
+    }
+
     const inAttesa = mie.filter((p) => p.stato === 'rate_concordate' && p.rate.length === 0)
     const daCompletare = inAttesa.find((p) => p.importo_cent !== null && Math.abs(p.importo_cent - pdf.importo_cent) <= 100)
       ?? inAttesa.find((p) => normalizzaTributo(p.tributo) === normalizzaTributo(tributo) && (!p.rate_concordate || p.rate_concordate === pdf.n_rate))
@@ -399,7 +409,7 @@ function aggiungiPianiDaPdf(
     nuove.push(p)
     esiti.push({ ...base, esito: 'nuovo', dettaglio: 'Piano nuovo' })
   }
-  return { aggiornate, esiti }
+  return esiti
 }
 
 /**
@@ -438,12 +448,37 @@ export function preparaImportazioneTributi(
   }
 
   const tutte = [...piani, ...sciolte]
-  const giaPresenti = new Set(esistenti.pratiche.filter((p) => !p.eliminato_il).map((p) => `${chiavePratica(p)}|${p.importo_cent ?? ''}`))
-  const nuove = tutte.filter((p) => !giaPresenti.has(`${chiavePratica(p)}|${p.importo_cent ?? ''}`))
+  const attive = esistenti.pratiche.filter((p) => !p.eliminato_il)
+  const giaPresenti = new Set(attive.map((p) => `${chiavePratica(p)}|${p.importo_cent ?? ''}`))
+  const aggiornate: PraticaTributo[] = []
+  const nuove: PraticaTributo[] = []
+  for (const p of tutte) {
+    if (giaPresenti.has(`${chiavePratica(p)}|${p.importo_cent ?? ''}`)) continue
+    if (p.rate.length) {
+      // Stesso piano già presente (anche con qualche centesimo di differenza): non si duplica. Se quello presente
+      // viene dal PDF (più preciso) gli si aggiungono solo le rate che l'Excel segna pagate.
+      const gia = attive.find((e) => stessoPiano(e, p))
+      if (gia) {
+        if (daPdf(gia)) {
+          const base = aggiornate.find((a) => a.id === gia.id) ?? gia
+          const unito = unisciPiani(base, [p])
+          if (unito.rate.some((r, i) => r.pagata !== base.rate[i].pagata)) {
+            const k = aggiornate.findIndex((a) => a.id === gia.id)
+            if (k >= 0) aggiornate[k] = unito; else aggiornate.push(unito)
+          }
+        }
+        continue
+      }
+    } else if (p.importo_cent && attive.some((e) => e.contribuente_id === p.contribuente_id && e.rate.length > 0
+      && Math.abs(importoDelPiano(e) - p.importo_cent!) <= 100)) {
+      continue   // rate decise di un piano che è già stato inserito
+    }
+    nuove.push(p)
+  }
   const saltate = tutte.length - nuove.length
 
   // Piani dai PDF della cartella (dopo gli Excel, così completano le "rate decise" appena lette)
-  const { aggiornate, esiti } = file.pdf?.length ? aggiungiPianiDaPdf(file.pdf, rubrica, nuove, esistenti.pratiche, utente) : { aggiornate: [], esiti: [] }
+  const esiti = file.pdf?.length ? aggiungiPianiDaPdf(file.pdf, rubrica, nuove, esistenti.pratiche, aggiornate, utente) : []
 
   if (rubrica.creatiDaFogli.length) avvisi.unshift(`Società non presenti nel foglio Anagrafica, create comunque (da completare con responsabile ed email): ${rubrica.creatiDaFogli.join(', ')}.`)
   if (!wbS && !wbR && !file.pdf?.length) avvisi.push('Nessun file da leggere.')

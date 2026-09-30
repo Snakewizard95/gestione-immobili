@@ -26,7 +26,7 @@ type Chiave = 'sospeso' | 'rateizzi'
 const DA_SALTARE = /(^|\/)(f24_[^/]*|SLEF24[^/]*)$|(^|\/)(F24 Mensili|_backup)\//i
 
 const ESITI: Record<EsitoPdf['esito'], { testo: string; tono: 'verde' | 'blu' | 'grigio' }> = {
-  nuovo: { testo: 'Nuovo', tono: 'verde' }, completa: { testo: 'Completa', tono: 'blu' }, gia_presente: { testo: 'Già presente', tono: 'grigio' }, doppione: { testo: 'Doppione', tono: 'grigio' },
+  nuovo: { testo: 'Nuovo', tono: 'verde' }, completa: { testo: 'Completa', tono: 'blu' }, aggiorna: { testo: 'Aggiorna', tono: 'blu' }, gia_presente: { testo: 'Già presente', tono: 'grigio' }, doppione: { testo: 'Doppione', tono: 'grigio' },
 }
 
 export default function ImportaTributi() {
@@ -108,7 +108,7 @@ export default function ImportaTributi() {
           ...piano.pratiche,
         ], `${m} (pratiche e rate)`)
       }
-      setEsito(`Importazione completata: ${piano.contribuenti.length} società, ${piano.pratiche.length} pratiche nuove (${piano.pratiche.filter((p) => p.rate.length).length} con il piano delle rate) e ${piano.aggiornate.length} pratiche completate con il piano del PDF. Le trovi in "Tributi rateizzati".`)
+      setEsito(`Importazione completata: ${piano.contribuenti.length} società, ${piano.pratiche.length} pratiche nuove (${piano.pratiche.filter((p) => p.rate.length).length} con il piano delle rate) e ${piano.aggiornate.length} pratiche già presenti completate o aggiornate. Le trovi in "Tributi rateizzati".`)
       setPiano(null); setFile({}); setNomi({ sospeso: '', rateizzi: '' }); setCartella(null)
     } catch (e) { setErrore((e as Error).message) } finally { setInCorso(false) }
   }
@@ -167,7 +167,7 @@ export default function ImportaTributi() {
           <TavolaKpi celle={[
             { titolo: 'Società nuove', valore: piano.contribuenti.length },
             { titolo: 'Pratiche nuove', valore: piano.pratiche.length, nota: `${piano.pratiche.filter((p) => p.rate.length).length} con il piano delle rate` },
-            ...(piano.esitiPdf.length ? [{ titolo: 'Piani dai PDF', valore: piano.esitiPdf.filter((x) => x.esito === 'nuovo' || x.esito === 'completa').length, nota: `${piano.esitiPdf.filter((x) => x.esito === 'nuovo').length} nuovi, ${piano.esitiPdf.filter((x) => x.esito === 'completa').length} completano "rate decise", ${piano.esitiPdf.filter((x) => x.esito === 'gia_presente').length} già presenti` }] : []),
+            ...(piano.esitiPdf.length ? [{ titolo: 'Piani dai PDF', valore: piano.esitiPdf.filter((x) => x.esito === 'nuovo' || x.esito === 'completa' || x.esito === 'aggiorna').length, nota: `${piano.esitiPdf.filter((x) => x.esito === 'nuovo').length} nuovi, ${piano.esitiPdf.filter((x) => x.esito === 'completa').length} completano "rate decise", ${piano.esitiPdf.filter((x) => x.esito === 'aggiorna').length} aggiornano piani dall'Excel, ${piano.esitiPdf.filter((x) => x.esito === 'gia_presente').length} già presenti` }] : []),
             { titolo: 'Già presenti', valore: piano.saltate, nota: 'verranno saltate' },
             { titolo: 'Controllo totali', valore: differenze.length ? `${differenze.length} diff.` : 'OK', nota: differenze.length ? 'società con totali diversi dal Riepilogo' : 'uguali al foglio Riepilogo', tono: differenze.length ? 'rosso' : undefined },
           ]} />
@@ -181,7 +181,7 @@ export default function ImportaTributi() {
           {piano.esitiPdf.length > 0 && (
             <div className="mb-6">
               <h6 className="mb-2 text-accento-700">Piani letti dalla cartella</h6>
-              <Tabella righe={[...piano.esitiPdf].sort((a, b) => ['nuovo', 'completa', 'doppione', 'gia_presente'].indexOf(a.esito) - ['nuovo', 'completa', 'doppione', 'gia_presente'].indexOf(b.esito) || a.societa.localeCompare(b.societa, 'it')).map((x, i) => ({ ...x, id: String(i) }))} colonne={[
+              <Tabella righe={[...piano.esitiPdf].sort((a, b) => ['nuovo', 'completa', 'aggiorna', 'doppione', 'gia_presente'].indexOf(a.esito) - ['nuovo', 'completa', 'aggiorna', 'doppione', 'gia_presente'].indexOf(b.esito) || a.societa.localeCompare(b.societa, 'it')).map((x, i) => ({ ...x, id: String(i) }))} colonne={[
                 { chiave: 'e', etichetta: 'Esito', render: (x) => <Etichetta tono={ESITI[x.esito].tono}>{ESITI[x.esito].testo}</Etichetta> },
                 { chiave: 's', etichetta: 'Società', render: (x) => <span className="font-medium">{x.societa}</span> },
                 { chiave: 't', etichetta: 'Tributo', render: (x) => x.tributo },

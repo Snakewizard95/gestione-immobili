@@ -10,7 +10,7 @@ import { Bottone, Caricamento } from '../components/ui'
 import logo from '../assets/logo-gruppo.png'
 import { attivi } from '../lib/store'
 import { STATI_PRATICA, TIPI_PRATICA, etichettaDi, type Contribuente, type PraticaTributo } from '../lib/tipi'
-import { daInserire, gestita, inCorso, riepilogoPratiche, riepilogoRate, statoEffettivo, termineRegolarizzazione, totaliDi, tutteLeRate, type Totali } from '../lib/tributi'
+import { daInserire, decaduto, gestita, inCorso, residuoDecaduto, riepilogoPratiche, riepilogoRate, statoEffettivo, termineRegolarizzazione, totaliDi, tutteLeRate, type Totali } from '../lib/tributi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { aggiungiMesi, formattaData, formattaDataOra, formattaEuro, oggiIso } from '../lib/utils/formato'
 import { giorniTra } from '../lib/ravvedimento'
@@ -60,6 +60,7 @@ function SchedaUfficio({ c, pratiche, mesi, prima }: { c: Contribuente; pratiche
   const saltate = rate.filter((x) => !x.rata.pagata && x.rata.scadenza < oggi)
   const prossime = rate.filter((x) => !x.rata.pagata && x.rata.scadenza >= oggi && x.rata.scadenza <= fine)
   const sospese = mie.filter(daInserire)
+  const decaduti = mie.filter(decaduto)
   const r = riepilogoPratiche(attivi_, oggi)
   const tProssime = totaliDi(prossime.map((x) => x.rata))
   const tSaltate = totaliDi(saltate.map((x) => x.rata))
@@ -120,6 +121,15 @@ function SchedaUfficio({ c, pratiche, mesi, prima }: { c: Contribuente; pratiche
         )}
       </Sezione>
 
+      {decaduti.length > 0 && (
+        <Sezione titolo="Piani decaduti: cartella esattoriale in arrivo"
+          nota="Le rate non pagate di questi piani non sono più scadenze. La cartella avrà un importo diverso (imposta residua, sanzioni piene, interessi e oneri di riscossione).">
+          <Tab intestazioni={['Tributo', 'Decaduto il', 'Rate non pagate', 'Non pagato', 'Cartella']} dx={[2, 3]}
+            righe={decaduti.map((p) => [p.tributo, formattaData(p.decaduto_il), p.rate.filter((x) => !x.pagata).length, formattaEuro(residuoDecaduto(p).totale_cent),
+              p.cartella_arrivata_il ? `arrivata il ${formattaData(p.cartella_arrivata_il)}` : 'in arrivo'])} />
+        </Sezione>
+      )}
+
       {sospese.length > 0 && (
         <Sezione titolo="Rate decise, piano da inserire">
           <Tab intestazioni={['Tributo', 'Tipo', 'Notificato', 'Importo', 'Termine', 'Stato']} dx={[3]}
@@ -143,7 +153,7 @@ export default function StampaTributi() {
   const pratiche = attivi(dati<PraticaTributo>('pratiche_tributi')).filter(gestita)
   const nomeValore = decodeURIComponent(valore ?? '')
   const scelti = tipo === 'responsabile'
-    ? contribuenti.filter((c) => c.responsabile === nomeValore && pratiche.some((p) => p.contribuente_id === c.id && (inCorso(p) || daInserire(p))))
+    ? contribuenti.filter((c) => c.responsabile === nomeValore && pratiche.some((p) => p.contribuente_id === c.id && (inCorso(p) || daInserire(p) || decaduto(p))))
     : contribuenti.filter((c) => c.id === nomeValore)
 
   if (caricamento && scelti.length === 0) return <div className="p-10"><Caricamento /></div>
