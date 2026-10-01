@@ -347,6 +347,17 @@ export interface Contribuente extends RecordBase {
   societa_id: string            // collegamento facoltativo a una società della piattaforma immobili
   conduttore_id: string         // collegamento facoltativo a un conduttore
   note: string
+  // Sezione Fornitori (facoltativi)
+  fornitori_rimosso?: boolean   // studio tolto dalla sezione Fornitori (resta nei tributi)
+  senza_royalty?: string[]      // fornitori di royalty che lo studio NON paga (es. ["Tecnomedia"]): escluso da quella griglia
+  royalty_importi?: Record<string, TariffaRoyalty[]>  // per fornitore: storico dell'importo mensile (vale dal mese indicato in poi)
+}
+
+/** Importo mensile della royalty di uno studio, valido dal mese `dal` (AAAA-MM) fino al cambio successivo. */
+export interface TariffaRoyalty {
+  dal: string
+  imponibile_cent: number
+  iva_percento: number
 }
 
 export const TIPI_PRATICA: Opzione[] = [
@@ -410,5 +421,27 @@ export interface PraticaTributo extends RecordBase {
   sollecito_il: string
   periodicita: string           // PERIODICITA_RATE
   rate: RataTributo[]
+  note: string
+}
+
+/* ====================== Fornitori ====================== */
+
+export const TIPOLOGIE_SPESA: Opzione[] = [
+  { valore: 'locazione', etichetta: 'Locazione' }, { valore: 'utenza', etichetta: 'Utenza' }, { valore: 'royalty', etichetta: 'Royalty' },
+  { valore: 'stipendi', etichetta: 'Stipendi' }, { valore: 'buste_paga', etichetta: 'Buste paga' }, { valore: 'altro', etichetta: 'Altro' },
+]
+
+/** Fattura di un fornitore di uno studio (studi = stesso elenco degli uffici dei tributi, collezione `contribuenti`). */
+export interface FatturaFornitore extends RecordBase {
+  contribuente_id: string   // studio
+  fornitore: string         // nome del fornitore (es. "Tecnocasa")
+  tipologia: string         // TIPOLOGIE_SPESA
+  numero: string            // numero della fattura
+  data_fattura: string
+  scadenza: string          // se vuota: data fattura + 30 giorni
+  competenza: string        // mensilità AAAA-MM (obbligatoria per le royalty)
+  importo_cent: number | null
+  pagata: boolean
+  pagata_il: string
   note: string
 }

@@ -20,8 +20,10 @@ import PaginaCondominio from './pages/Condominio'
 import SchedaImmobile from './pages/SchedaImmobile'
 import PaginaComunicazioni from './pages/Comunicazioni'
 import PaginaTributi from './pages/Tributi'
+import PaginaFornitori from './pages/Fornitori'
 import { StampaLetteraIstat } from './pages/StampaDocumenti'
 import StampaTributi from './pages/StampaTributi'
+import { StampaFattureFornitori, StampaRoyalty } from './pages/StampaFornitori'
 
 /** Mostra le pagine interne solo se l'utente ha effettuato l'accesso. */
 function AreaProtetta() {
@@ -32,6 +34,8 @@ function AreaProtetta() {
       <Route path="/stampa/immobile/:id" element={<Guardia sezione="contratti"><SchedaImmobile /></Guardia>} />
       <Route path="/stampa/lettera-istat/:id" element={<Guardia sezione="comunicazioni"><StampaLetteraIstat /></Guardia>} />
       <Route path="/stampa/tributi/:tipo/:valore" element={<Guardia sezione="tributi"><StampaTributi /></Guardia>} />
+      <Route path="/stampa/fornitori/:tipo/:valore" element={<Guardia sezione="fornitori"><StampaFattureFornitori /></Guardia>} />
+      <Route path="/stampa/royalty/:fornitore/:anno" element={<Guardia sezione="fornitori"><StampaRoyalty /></Guardia>} />
       <Route path="/*" element={<AreaConMenu />} />
     </Routes>
   )
@@ -60,6 +64,7 @@ function AreaConMenu() {
         <Route path="/condominio" element={<Guardia sezione="condominio"><PaginaCondominio /></Guardia>} />
         <Route path="/comunicazioni" element={<Guardia sezione="comunicazioni"><PaginaComunicazioni /></Guardia>} />
         <Route path="/tributi" element={<Guardia sezione="tributi"><PaginaTributi /></Guardia>} />
+        <Route path="/fornitori" element={<Guardia sezione="fornitori"><PaginaFornitori /></Guardia>} />
         <Route path="/importa" element={<Guardia sezione="importa"><PaginaImporta /></Guardia>} />
         <Route path="/storico" element={<Guardia sezione="storico"><PaginaStorico /></Guardia>} />
         <Route path="/impostazioni" element={<Guardia sezione="impostazioni"><Impostazioni /></Guardia>} />
