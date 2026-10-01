@@ -12,10 +12,27 @@ import { Avviso, BarraRicerca, Bottone, Caricamento, Etichetta, Finestra, Gruppo
 import { attivi } from '../lib/store'
 import { TIPOLOGIE_CONTRATTO, etichettaDi, impostaDaPagare, inCedolare, rimborsoDaIncassare, statoIva, type Annualita, type Conduttore, type Contratto, type Immobile, type Societa } from '../lib/tipi'
 import { useCollezioni } from '../lib/useCollezioni'
-import { formattaData, formattaEuro } from '../lib/utils/formato'
+import { formattaData, formattaEuro, oggiIso } from '../lib/utils/formato'
 
-type RigaContratto = Contratto & { societa: string; immobile: string; conduttore: string; nAnnualita: number; ultimoAnno: number | null; daPagare: number }
+type RigaContratto = Contratto & { societa: string; immobile: string; conduttore: string; nAnnualita: number; ultimoAnno: number | null; daPagare: number; mancanti: number[] }
 type RigaAnnualita = Annualita & { societa: string; immobile: string; conduttore: string; cedolare: boolean; contratto: Contratto | undefined }
+
+/**
+ * Anni con l'imposta di registro non pagata: dalla seconda annualità (la prima si paga alla registrazione) fino all'ultima
+ * già iniziata (anniversario della decorrenza raggiunto, entro la cessazione), quelli senza annualità registrata o con
+ * l'imposta non pagata. In cedolare secca nessuno.
+ */
+function anniMancanti(c: Contratto, mie: Annualita[], oggi: string): number[] {
+  if (inCedolare(c) || !/^\d{4}-\d{2}-\d{2}$/.test(c.data_decorrenza ?? '')) return []
+  const limite = c.data_cessazione && c.data_cessazione < oggi ? c.data_cessazione : oggi
+  const fine = Number(limite.slice(0, 4)) - (c.data_decorrenza.slice(5) > limite.slice(5) ? 1 : 0)
+  const out: number[] = []
+  for (let y = Number(c.data_decorrenza.slice(0, 4)) + 1; y <= fine; y++) {
+    const a = mie.filter((x) => x.anno === y)
+    if (!a.length || a.every((x) => impostaDaPagare(x, c))) out.push(y)
+  }
+  return out
+}
 
 function Promemoria() {
   const [aperto, setAperto] = useState(false)
@@ -60,7 +77,7 @@ export default function PaginaRegistro() {
   const conduttori = attivi(dati<Conduttore>('conduttori'))
   const societa = attivi(dati<Societa>('societa'))
   const annualita = attivi(dati<Annualita>('annualita'))
-  const annoCorrente = new Date().getFullYear()
+  const oggi = oggiIso()
 
   const descrivi = (c: Contratto) => {
     const imm = immobili.find((i) => i.id === c.immobile_id)
@@ -71,7 +88,7 @@ export default function PaginaRegistro() {
   const righeContratti: RigaContratto[] = filtraTesto(
     contratti.filter((c) => c.stato !== 'cessato').map((c) => {
       const mie = annualita.filter((a) => a.contratto_id === c.id)
-      return { ...c, ...descrivi(c), nAnnualita: mie.length, ultimoAnno: mie.length ? Math.max(...mie.map((a) => a.anno)) : null, daPagare: mie.filter((a) => impostaDaPagare(a, c)).length }
+      return { ...c, ...descrivi(c), nAnnualita: mie.length, ultimoAnno: mie.length ? Math.max(...mie.map((a) => a.anno)) : null, daPagare: mie.filter((a) => impostaDaPagare(a, c)).length, mancanti: anniMancanti(c, mie, oggi) }
     }), ricerca)
   const perSocietaC = raggruppa(righeContratti, (r) => r.societa)
 
@@ -97,8 +114,10 @@ export default function PaginaRegistro() {
     { chiave: 'iva', etichetta: 'IVA', render: (r: RigaContratto) => { const s = statoIva(r); return <Etichetta tono={s.tono}>{s.testo}</Etichetta> } },
     { chiave: 'dec', etichetta: 'Decorrenza', render: (r: RigaContratto) => formattaData(r.data_decorrenza) },
     { chiave: 'men', etichetta: 'Canone mensile', allinea: 'dx' as const, render: (r: RigaContratto) => formattaEuro(r.canone_mensile_cent) },
-    { chiave: 'ann', etichetta: 'Annualità registrate', allinea: 'dx' as const, render: (r: RigaContratto) => r.nAnnualita ? `${r.nAnnualita} (ultima ${r.ultimoAnno})` : <span className="text-neutro-500">nessuna</span> },
-    { chiave: 'st', etichetta: 'Stato', render: (r: RigaContratto) => inCedolare(r) ? <Etichetta tono="verde">Cedolare secca · in regola</Etichetta> : r.daPagare > 0 ? <Etichetta tono="rosso">{r.daPagare} imposta da pagare</Etichetta> : r.ultimoAnno !== null && r.ultimoAnno >= annoCorrente ? <Etichetta tono="verde">In regola {r.ultimoAnno}</Etichetta> : <Etichetta tono="giallo">Da registrare {annoCorrente}</Etichetta> },
+    { chiave: 'ann', etichetta: 'Annualità mancanti', render: (r: RigaContratto) => inCedolare(r) ? <span className="text-neutro-500">—</span>
+      : !r.data_decorrenza ? <span className="text-neutro-500">decorrenza mancante</span>
+      : r.mancanti.length ? <span className="num font-medium text-err-testo">{r.mancanti.join(', ')}</span> : <span className="text-neutro-500">nessuna</span> },
+    { chiave: 'st', etichetta: 'Stato', render: (r: RigaContratto) => inCedolare(r) ? <Etichetta tono="verde">Cedolare secca · in regola</Etichetta> : r.mancanti.length > 0 ? <Etichetta tono="rosso">{r.mancanti.length === 1 ? '1 annualità da pagare' : `${r.mancanti.length} annualità da pagare`}</Etichetta> : r.data_decorrenza ? <Etichetta tono="verde">In regola</Etichetta> : <Etichetta tono="giallo">Manca la decorrenza</Etichetta> },
   ]
   const colonneAnnualita = [
     { chiave: 'anno', etichetta: 'Anno', render: (a: RigaAnnualita) => <span className="num font-titolo text-[17px] font-semibold">{a.anno}</span> },
@@ -119,7 +138,7 @@ export default function PaginaRegistro() {
         sottotitolo="Registro storico, anno per anno, di aggiornamenti ISTAT, imposta di registro e rimborsi dei conduttori."
         azioni={<Bottone variante="secondario" onClick={() => scaricaExcel('ISTAT_imposta_registro', [
           { nome: 'Annualità', righe: righeAnnualita.map((a) => ({ 'Anno': a.anno, 'Società': a.societa, 'Immobile': a.immobile, 'Conduttore': a.conduttore, 'Inizio annualità': formattaData(a.data_inizio), 'ISTAT applicato': a.istat_applicato === 'si' ? 'Sì' : 'No', 'Indice ISTAT %': a.istat_indice_percento ?? '', 'Quota %': a.istat_quota_percento ?? '', 'Mensile prima': (a.canone_mensile_precedente_cent ?? 0) / 100, 'Mensile dopo': (a.canone_mensile_nuovo_cent ?? 0) / 100, 'Annuo dopo': (a.canone_nuovo_cent ?? 0) / 100, 'Aliquota %': a.imposta_percento ?? '', 'Base %': a.base_imponibile_percento ?? '', 'Imposta': (a.imposta_cent ?? 0) / 100, 'Pagata': a.cedolare ? 'Non dovuta (cedolare secca)' : a.imposta_pagata === 'si' ? 'Sì' : 'No', 'Data pagamento': formattaData(a.imposta_data_pagamento), 'Quota conduttore': (a.quota_conduttore_cent ?? 0) / 100, 'Rimborso ricevuto': a.cedolare ? 'Non dovuto (cedolare secca)' : a.rimborso_ricevuto === 'si' ? 'Sì' : 'No', 'Data rimborso': formattaData(a.rimborso_data), 'Note': a.note })) },
-          { nome: 'Contratti', righe: righeContratti.map((r) => ({ 'Società': r.societa, 'Immobile': r.immobile, 'Conduttore': r.conduttore, 'Tipo': etichettaDi(TIPOLOGIE_CONTRATTO, r.tipologia), 'IVA': statoIva(r).testo, 'Decorrenza': formattaData(r.data_decorrenza), 'Canone mensile': (r.canone_mensile_cent ?? 0) / 100, 'Annualità registrate': r.nAnnualita, 'Ultimo anno': r.ultimoAnno ?? '', 'Cedolare secca': inCedolare(r) ? 'Sì' : 'No', 'Imposte da pagare': r.daPagare })) },
+          { nome: 'Contratti', righe: righeContratti.map((r) => ({ 'Società': r.societa, 'Immobile': r.immobile, 'Conduttore': r.conduttore, 'Tipo': etichettaDi(TIPOLOGIE_CONTRATTO, r.tipologia), 'IVA': statoIva(r).testo, 'Decorrenza': formattaData(r.data_decorrenza), 'Canone mensile': (r.canone_mensile_cent ?? 0) / 100, 'Annualità mancanti': r.mancanti.join(', '), 'Ultimo anno registrato': r.ultimoAnno ?? '', 'Cedolare secca': inCedolare(r) ? 'Sì' : 'No', 'Annualità da pagare': r.mancanti.length })) },
         ])}><FileSpreadsheet size={16} /> Esporta Excel</Bottone>} />
       <Promemoria />
 

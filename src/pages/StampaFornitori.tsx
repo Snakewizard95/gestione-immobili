@@ -142,8 +142,8 @@ const MESI_BREVI = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set
 const meseBreve = (m: string) => `${MESI_BREVI[Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`
 
 /**
- * Per ogni ufficio le mensilità ancora da pagare (anche degli anni precedenti, dal primo importo impostato) fino a
- * dicembre dell'anno scelto, tutte come "da pagare" senza distinguere le insolute, con n. e data della fattura (servono per la causale).
+ * Per ogni ufficio le mensilità ancora da pagare (anche degli anni precedenti, dal primo importo impostato) fino
+ * al mese corrente (mai i mesi futuri), tutte come "da pagare" senza distinguere le insolute, con n. e data della fattura (servono per la causale).
  * I mesi pagati non compaiono; gli uffici in regola stanno su una riga in fondo.
  */
 export function StampaRoyalty() {
@@ -163,16 +163,17 @@ export function StampaRoyalty() {
     .sort((a, b) => a.nome.localeCompare(b.nome, 'it'))
   if (caricamento && !studi.length) return <div className="p-10"><Caricamento /></div>
 
-  const fine = `${anno}-12`
+  // fino al mese corrente (i mesi futuri non si stampano); per un anno passato fino a dicembre
+  const fine = `${anno}-12` < meseCorrente ? `${anno}-12` : meseCorrente
   const meseDopo = (m: string) => (m.slice(5) === '12' ? `${Number(m.slice(0, 4)) + 1}-01` : `${m.slice(0, 5)}${String(Number(m.slice(5)) + 1).padStart(2, '0')}`)
   const blocchi = studi.map((s) => {
     const righe = fornitori.filter((f) => pagaRoyalty(s, f)).flatMap((f) => {
       const primo = storicoTariffe(s, f)[0]?.dal
       const mesi: string[] = []
-      // dal primo importo (o da gennaio dell'anno) fino a dicembre
+      // dal primo importo (o da gennaio dell'anno) fino al mese corrente
       for (let m = primo && primo < `${anno}-01` ? primo : `${anno}-01`; m <= fine; m = meseDopo(m)) mesi.push(m)
       return mesi.map((x) => ({ fornitore: f, mese: x, ...mensilita(s, f, x, fatture, oggi) }))
-        .filter((r) => r.stato && r.stato !== 'pagata' && (r.stato === 'insoluta' || r.mese.startsWith(String(anno)) || r.mese >= meseCorrente))
+        .filter((r) => r.stato && r.stato !== 'pagata')
     }).sort((a, b) => a.mese.localeCompare(b.mese) || a.fornitore.localeCompare(b.fornitore))
     const impostato = fornitori.some((f) => pagaRoyalty(s, f) && storicoTariffe(s, f).length > 0)
     const somma = (rr: typeof righe) => rr.reduce((t, r) => t + (r.importo_cent ?? 0), 0)
@@ -193,10 +194,10 @@ export function StampaRoyalty() {
       <Barra indietro={`/fornitori?${new URLSearchParams({ scheda: 'royalty', anno: String(anno), ...(responsabile ? { responsabile } : {}), ...(ufficio ? { ufficio } : {}) }).toString()}`} />
       <div className="pagina-stampa ombra-md mx-auto my-8 max-w-[794px] bg-white px-6 py-7 text-sm md:px-10 print:my-0">
         <Intestazione kicker={`Royalty ${fornitori.join(' e ')}`} titolo={`Da pagare · ${anno}`}
-          sotto={[responsabile && `Responsabile: ${responsabile}`, ufficio && studi[0]?.nome, 'mensilità non pagate fino a dicembre'].filter(Boolean).join(' · ')} />
+          sotto={[responsabile && `Responsabile: ${responsabile}`, ufficio && studi[0]?.nome, `mensilità non pagate fino a ${meseBreve(fine)}`].filter(Boolean).join(' · ')} />
         <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-b border-divisore pb-2 text-[13px]">
           <span>{daMostrare.length} uffici con importi da pagare</span>
-          <span>Totale da pagare fino a dicembre <b>{formattaEuro(totale)}</b>{fornitori.length > 1 && <span className="text-neutro-700"> ({fornitori.map((f) => `${f} ${formattaEuro(totFornitore(f))}`).join(' · ')})</span>}</span>
+          <span>Totale da pagare <b>{formattaEuro(totale)}</b>{fornitori.length > 1 && <span className="text-neutro-700"> ({fornitori.map((f) => `${f} ${formattaEuro(totFornitore(f))}`).join(' · ')})</span>}</span>
         </div>
 
         {daMostrare.map(({ s, righe, totale: t, perFornitore }) => (
