@@ -1,6 +1,6 @@
 /**
  * Scheda "Royalty": situazione di Tecnocasa o Tecnomedia per gli uffici che le pagano. Ogni ufficio ha un importo mensile
- * (imponibile + IVA) che vale per tutte le mensilità dal mese indicato in poi: cambiandolo si sceglie da quale mese vale,
+ * (si inserisce il totale con IVA, scomposto in imponibile + IVA) che vale per tutte le mensilità dal mese indicato in poi: cambiandolo si sceglie da quale mese vale,
  * le mensilità precedenti restano con l'importo di allora. Ogni casella è una mensilità: pagata, da pagare (fino alla
  * fine del mese) o insoluta; clic per segnarla pagata. "×" toglie un ufficio che non paga la royalty, "Aggiungi ufficio" lo rimette.
  */
@@ -11,7 +11,7 @@ import { useSessioneAttiva } from '../../lib/sessione'
 import { aggiorna, campiModifica } from '../../lib/store'
 import type { Contribuente, FatturaFornitore, TariffaRoyalty } from '../../lib/tipi'
 import {
-  FORNITORI_ROYALTY, fineMese, mensilita, nuovaFattura, pagaRoyalty, storicoTariffe, studioInFornitori, tariffaDel, totaliTariffa, type Mensilita, type StatoFattura,
+  FORNITORI_ROYALTY, fineMese, mensilita, nuovaFattura, scomponiTotale, pagaRoyalty, storicoTariffe, studioInFornitori, tariffaDel, totaliTariffa, type Mensilita, type StatoFattura,
 } from '../../lib/fornitori'
 import { analizzaEuro, formattaData, formattaEuro, oggiIso } from '../../lib/utils/formato'
 import { useSoloLettura } from '../SoloLettura'
@@ -40,7 +40,7 @@ export default function GrigliaRoyalty({ studi: tuttiStudi, fatture }: { studi: 
   const [errore, setErrore] = useState<string | null>(null)
   const [responsabile, setResponsabile] = useState(parametri.get('responsabile') ?? '')
   const [ufficio, setUfficio] = useState(parametri.get('ufficio') ?? '')
-  const [importo, setImporto] = useState<{ id: string; imponibile: string; iva: string; dal: string } | null>(null)
+  const [importo, setImporto] = useState<{ id: string; totale: string; iva: string; dal: string } | null>(null)
   const [aperta, setAperta] = useState<{ s: Contribuente; mese: string } | null>(null)
 
   const inSezione = tuttiStudi.filter(studioInFornitori)
@@ -70,19 +70,19 @@ export default function GrigliaRoyalty({ studi: tuttiStudi, fatture }: { studi: 
   /** Nuovo importo mensile valido dal mese scelto in poi (stesso mese: sostituisce). I mesi precedenti non cambiano. */
   async function salvaImporto(s: Contribuente) {
     if (!importo) return
-    const imponibile = analizzaEuro(importo.imponibile)
+    const totale = analizzaEuro(importo.totale)
     const iva = Number(importo.iva.replace(',', '.'))
-    if (!imponibile || imponibile <= 0) { setErrore('Scrivi l\'imponibile mensile.'); return }
+    if (!totale || totale <= 0) { setErrore('Scrivi l\'importo mensile totale con IVA.'); return }
     if (!Number.isFinite(iva) || iva < 0) { setErrore('IVA non valida.'); return }
     if (!/^\d{4}-\d{2}$/.test(importo.dal)) { setErrore('Indica da quale mese vale.'); return }
-    const t: TariffaRoyalty = { dal: importo.dal, imponibile_cent: imponibile, iva_percento: iva }
+    const t: TariffaRoyalty = { dal: importo.dal, imponibile_cent: scomponiTotale(totale, iva).imponibile_cent, iva_percento: iva, totale_cent: totale }
     const storico = [...storicoTariffe(s, fornitore).filter((x) => x.dal !== t.dal), t].sort((a, b) => a.dal.localeCompare(b.dal))
     if (await salvaStudio(s, { royalty_importi: { ...(s.royalty_importi ?? {}), [fornitore]: storico } },
-      `royalty ${fornitore} ${s.nome}: ${formattaEuro(imponibile)} + IVA dal ${importo.dal}`)) setImporto(null)
+      `royalty ${fornitore} ${s.nome}: ${formattaEuro(totale)} IVA inclusa dal ${importo.dal}`)) setImporto(null)
   }
   function apriImporto(s: Contribuente) {
     const t = tariffaDel(s, fornitore, meseRiferimento) ?? storicoTariffe(s, fornitore).at(-1)
-    setImporto({ id: s.id, imponibile: centInTesto(t?.imponibile_cent), iva: String(t?.iva_percento ?? 22).replace('.', ','), dal: t ? meseCorrente : `${anno}-01` })
+    setImporto({ id: s.id, totale: centInTesto(t ? totaliTariffa(t).totale_cent : null), iva: String(t?.iva_percento ?? 22).replace('.', ','), dal: t ? meseCorrente : `${anno}-01` })
   }
 
   return (
@@ -135,10 +135,13 @@ export default function GrigliaRoyalty({ studi: tuttiStudi, fatture }: { studi: 
                     <td className="whitespace-nowrap px-2 py-0.5">
                       {importo?.id === s.id ? (
                         <span className="flex items-center gap-1">
-                          <input value={importo.imponibile} autoFocus placeholder="Imponibile" inputMode="decimal" onChange={(e) => setImporto({ ...importo, imponibile: e.target.value })} className="input num w-[90px] !min-h-[26px] !py-0 text-right text-[12px]" />
-                          <span className="text-[11px] text-neutro-700">+ IVA</span>
+                          <input value={importo.totale} autoFocus placeholder="Totale con IVA" title="Importo mensile totale, IVA inclusa" inputMode="decimal" onChange={(e) => setImporto({ ...importo, totale: e.target.value })} className="input num w-[90px] !min-h-[26px] !py-0 text-right text-[12px]" />
+                          <span className="text-[11px] text-neutro-700">IVA incl. al</span>
                           <input value={importo.iva} inputMode="decimal" onChange={(e) => setImporto({ ...importo, iva: e.target.value })} className="input num w-[44px] !min-h-[26px] !py-0 text-right text-[12px]" />
-                          <span className="text-[11px] text-neutro-700">% dal</span>
+                          <span className="text-[11px] text-neutro-700">%</span>
+                          {(() => { const tot = analizzaEuro(importo.totale), iva = Number(importo.iva.replace(',', '.')); if (!tot || !Number.isFinite(iva)) return null; const x = scomponiTotale(tot, iva)
+                            return <span className="text-[11px] text-neutro-700">= <span className="num">{formattaEuro(x.imponibile_cent)}</span> + <span className="num">{formattaEuro(x.iva_cent)}</span> IVA</span> })()}
+                          <span className="text-[11px] text-neutro-700">dal</span>
                           <input type="month" value={importo.dal} onChange={(e) => setImporto({ ...importo, dal: e.target.value })} className="input w-[130px] !min-h-[26px] !py-0 text-[12px]" />
                           <button type="button" title="Salva" onClick={() => salvaImporto(s)} className="btn btn-primario btn-piccolo !min-h-[26px] !px-1.5"><Check size={13} /></button>
                           <button type="button" title="Annulla" onClick={() => setImporto(null)} className="btn btn-ghost btn-piccolo !min-h-[26px] !px-1.5"><X size={13} /></button>

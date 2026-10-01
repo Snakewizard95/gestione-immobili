@@ -64,10 +64,17 @@ export const pagaRoyalty = (c: Contribuente, fornitore: string) => !(c.senza_roy
 
 /* ---------------------------- importo mensile delle royalty ---------------------------- */
 
-/** IVA e totale di un importo mensile. */
+/** IVA e totale di un importo mensile (se è stato inserito il totale con IVA vale quello, al centesimo). */
 export function totaliTariffa(t: TariffaRoyalty): { iva_cent: number; totale_cent: number } {
+  if (t.totale_cent != null) return { iva_cent: t.totale_cent - t.imponibile_cent, totale_cent: t.totale_cent }
   const iva = Math.round(t.imponibile_cent * t.iva_percento / 100)
   return { iva_cent: iva, totale_cent: t.imponibile_cent + iva }
+}
+
+/** Scompone un totale con IVA in imponibile e IVA (l'IVA è la differenza, così la somma torna sempre al centesimo). */
+export function scomponiTotale(totale_cent: number, iva_percento: number): { imponibile_cent: number; iva_cent: number } {
+  const imponibile = Math.round(totale_cent * 100 / (100 + iva_percento))
+  return { imponibile_cent: imponibile, iva_cent: totale_cent - imponibile }
 }
 
 /** Storico degli importi mensili di uno studio per un fornitore, dal più vecchio. */

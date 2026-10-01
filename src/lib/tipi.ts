@@ -358,6 +358,7 @@ export interface TariffaRoyalty {
   dal: string
   imponibile_cent: number
   iva_percento: number
+  totale_cent?: number   // totale con IVA inserito da Davide (da cui si ricava l'imponibile); assente negli importi più vecchi
 }
 
 export const TIPI_PRATICA: Opzione[] = [
