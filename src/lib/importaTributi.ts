@@ -135,6 +135,8 @@ class Rubrica {
     if (!n) return null
     let c = this.elenco.find((x) => this.chiavi(x).includes(n))
     if (!c && ALIAS[n]) { const a = normalizzaNome(ALIAS[n]); c = this.elenco.find((x) => this.chiavi(x).includes(a)) }
+    // Anche al contrario: una società già salvata come "Alga" o "Gruppo CEC Impresa" corrisponde a "Al.ga" / "Impresa"
+    if (!c) c = this.elenco.find((x) => this.chiavi(x).some((k) => ALIAS[k] && normalizzaNome(ALIAS[k]) === n))
     if (!c) {
       const cand = this.elenco.filter((x) => this.chiavi(x).some((k) => k.startsWith(n + ' ') || n.startsWith(k + ' ')))
       if (cand.length === 1) c = cand[0]
@@ -487,4 +489,67 @@ export function preparaImportazioneTributi(
     contribuenti: rubrica.tuttiNuovi, pratiche: nuove, aggiornate, esitiPdf: esiti, aliasAggiunti: rubrica.aliasNuovi,
     controlli, avvisi, saltate,
   }
+}
+
+/* ---------------------------- solo anagrafica (responsabili) ---------------------------- */
+
+export interface RigaAnagrafica {
+  nome: string                  // come scritto nel foglio Anagrafica
+  societa: string               // società della piattaforma a cui corrisponde
+  esito: 'nuova' | 'aggiornata' | 'invariata'
+  cambi: string[]               // es. 'Responsabile: "" → "Giuseppe"'
+  responsabile: string
+  email: string
+}
+
+export interface PianoAnagrafica {
+  nuovi: Contribuente[]
+  aggiornati: Contribuente[]
+  righe: RigaAnagrafica[]
+  avvisi: string[]
+}
+
+/**
+ * Legge SOLO il foglio "Anagrafica" del file "Tributi in Sospeso" (Società | Responsabile | Email | Email CC) e
+ * aggiorna responsabile ed email delle società già presenti (riconosciute anche dagli alias); le società mancanti
+ * vengono aggiunte, senza pratiche. Le celle vuote dell'Excel non cancellano i dati già presenti. Piani e avvisi non vengono toccati.
+ */
+export function preparaAnagrafica(buffer: ArrayBuffer, esistenti: Contribuente[], utente: string): PianoAnagrafica {
+  const avvisi: string[] = []
+  const wb = XLSX.read(buffer, { type: 'array' })
+  const righeFoglio = leggiFoglio(wb, 'Anagrafica')
+  if (!righeFoglio) return { nuovi: [], aggiornati: [], righe: [], avvisi: ['Nel file non c\'è il foglio "Anagrafica".'] }
+  const rubrica = new Rubrica(esistenti.filter((c) => !c.eliminato_il), utente)
+  const modificati = new Map<string, Contribuente>()
+  const righe: RigaAnagrafica[] = []
+  for (const r of righeFoglio.slice(1)) {
+    const nome = testo(r[0])
+    if (!nome) continue
+    const dati = { responsabile: testo(r[1]), email: testo(r[2]), email_cc: testo(r[3]) }
+    const trovato = rubrica.trova(nome)
+    if (!trovato) {
+      const c = { ...vuotoContribuente(utente, nome), ...dati }
+      rubrica.aggiungi(c)
+      righe.push({ nome, societa: nome, esito: 'nuova', cambi: [], responsabile: dati.responsabile, email: dati.email })
+      continue
+    }
+    const base = modificati.get(trovato.id) ?? trovato
+    const cambi: string[] = []
+    const nuovo = { ...base }
+    for (const [campo, etichetta] of [['responsabile', 'Responsabile'], ['email', 'Email'], ['email_cc', 'Email CC']] as const) {
+      if (dati[campo] && dati[campo] !== base[campo]) { cambi.push(`${etichetta}: "${base[campo] || '—'}" → "${dati[campo]}"`); nuovo[campo] = dati[campo] }
+    }
+    if (cambi.length && !rubrica.tuttiNuovi.includes(trovato)) modificati.set(trovato.id, { ...nuovo, modificato_il: new Date().toISOString(), modificato_da: utente })
+    else if (cambi.length) Object.assign(trovato, nuovo)
+    righe.push({ nome, societa: trovato.nome, esito: cambi.length ? 'aggiornata' : 'invariata', cambi, responsabile: nuovo.responsabile, email: nuovo.email })
+  }
+  // Alias imparati abbinando i nomi (es. "Prati" ↔ "Prati delle vittorie"): utili per le prossime importazioni
+  for (const { id, alias } of rubrica.aliasNuovi) {
+    const base = modificati.get(id) ?? esistenti.find((c) => c.id === id)
+    if (base) modificati.set(id, { ...base, alias: [...(base.alias ?? []), ...alias], modificato_il: new Date().toISOString(), modificato_da: utente })
+  }
+  const nomiFoglio = new Set(righe.map((x) => x.societa))
+  const senza = esistenti.filter((c) => !c.eliminato_il && !nomiFoglio.has(c.nome) && !c.responsabile)
+  if (senza.length) avvisi.push(`Società senza responsabile e non presenti nel foglio Anagrafica: ${senza.map((c) => c.nome).join(', ')}. Completale nella scheda Società.`)
+  return { nuovi: rubrica.tuttiNuovi, aggiornati: [...modificati.values()], righe, avvisi }
 }

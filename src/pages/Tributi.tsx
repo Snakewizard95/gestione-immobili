@@ -9,6 +9,7 @@ import Calendario from '../components/tributi/Calendario'
 import Contribuenti from '../components/tributi/Contribuenti'
 import EditorPiano from '../components/tributi/EditorPiano'
 import DoppioniPiani from '../components/tributi/DoppioniPiani'
+import Decaduti from '../components/tributi/Decaduti'
 import { SoloSeModifica } from '../components/SoloLettura'
 import { BarraPagato, EtichettaStato, Scomposizione } from '../components/tributi/comuni'
 import SchedaPiano from '../components/tributi/SchedaPiano'
@@ -19,8 +20,8 @@ import { useCollezioni } from '../lib/useCollezioni'
 import { attivi } from '../lib/store'
 import { formattaData, formattaEuro, oggiIso } from '../lib/utils/formato'
 
-type Scheda = 'calendario' | 'piani' | 'societa' | 'anagrafica'
-type FiltroPiani = 'in_corso' | 'estinti' | 'da_completare' | 'decaduti' | 'tutte'
+type Scheda = 'calendario' | 'piani' | 'decaduti' | 'societa' | 'anagrafica'
+type FiltroPiani = 'in_corso' | 'estinti' | 'da_completare' | 'tutte'
 
 export default function PaginaTributi() {
   const { dati, caricamento, errore } = useCollezioni(['contribuenti', 'pratiche_tributi'])
@@ -38,6 +39,12 @@ export default function PaginaTributi() {
   const tot = riepilogoPratiche(pratiche.filter(inCorso), oggi)
   const praticaAperta = pratiche.find((p) => p.id === aperta) ?? null
 
+  /** Arrivata la cartella di un piano decaduto: nuovo piano di tipo cartella già compilato. */
+  const inserisciCartella = (p: PraticaTributo) => setEditor({
+    base: null, contribuente: p.contribuente_id, tipo: 'cartella', tributo: `Cartella ${p.tributo}`,
+    nota: `Cartella per il piano decaduto "${p.tributo}"${p.decaduto_il ? ` (decaduto il ${formattaData(p.decaduto_il)})` : ''}.`,
+  })
+
   // Pratiche filtrate per la scheda "Piani"
   const q = ricerca.trim().toLowerCase()
   const filtrate = pratiche.filter((p) => {
@@ -45,7 +52,6 @@ export default function PaginaTributi() {
     if (filtro === 'in_corso' && !inCorso(p)) return false
     if (filtro === 'estinti' && statoEffettivo(p) !== 'estinto') return false
     if (filtro === 'da_completare' && !(p.stato === 'rate_concordate' && p.rate.length === 0)) return false
-    if (filtro === 'decaduti' && !decaduto(p)) return false
     if (q) {
       const c = contribuenti.find((x) => x.id === p.contribuente_id)
       const testo = [p.tributo, c?.nome, c?.responsabile, ...(c?.alias ?? []), etichettaDi(TIPI_PRATICA, p.tipo)].join(' ').toLowerCase()
@@ -59,14 +65,14 @@ export default function PaginaTributi() {
     .filter((g) => g.pratiche.length > 0)
 
   const conteggio = (f: FiltroPiani) => pratiche.filter((p) =>
-    f === 'in_corso' ? inCorso(p) : f === 'estinti' ? statoEffettivo(p) === 'estinto' : f === 'da_completare' ? p.stato === 'rate_concordate' && p.rate.length === 0 : f === 'decaduti' ? decaduto(p) : true).length
+    f === 'in_corso' ? inCorso(p) : f === 'estinti' ? statoEffettivo(p) === 'estinto' : f === 'da_completare' ? p.stato === 'rate_concordate' && p.rate.length === 0 : true).length
 
   return (
     <div>
       <IntestazionePagina kicker="Fiscale" titolo="Tributi rateizzati"
         sottotitolo="Avvisi bonari, cartelle e rottamazioni delle società: piani di rate, pagamenti e debito residuo."
         azioni={<>
-          <Segmentato valore={scheda} onChange={setScheda} opzioni={[{ valore: 'calendario', etichetta: 'Calendario' }, { valore: 'piani', etichetta: 'Piani' }, { valore: 'societa', etichetta: 'Riepilogo' }, { valore: 'anagrafica', etichetta: 'Società' }]} />
+          <Segmentato valore={scheda} onChange={setScheda} opzioni={[{ valore: 'calendario', etichetta: 'Calendario' }, { valore: 'piani', etichetta: 'Piani' }, { valore: 'decaduti', etichetta: `Decaduti (${pratiche.filter(decaduto).length})` }, { valore: 'societa', etichetta: 'Riepilogo' }, { valore: 'anagrafica', etichetta: 'Società' }]} />
           <SoloSeModifica><Bottone onClick={() => setEditor({ base: null, contribuente: contribuenteScelto || undefined })}><Plus size={16} /> Nuovo piano</Bottone></SoloSeModifica>
         </>} />
 
@@ -79,10 +85,12 @@ export default function PaginaTributi() {
             <div className="mb-5"><Avviso tipo="info">
               {pratiche.filter(inAttesaCartella).length} {pratiche.filter(inAttesaCartella).length === 1 ? 'piano decaduto' : 'piani decaduti'}: le rate non pagate
               ({formattaEuro(pratiche.filter(inAttesaCartella).reduce((t, p) => t + residuoDecaduto(p).totale_cent, 0))}) non sono tra le scadenze, arriverà una cartella esattoriale.
-              {' '}<button type="button" className="underline" onClick={() => { setFiltro('decaduti'); setContribuenteScelto(''); setScheda('piani') }}>Vedi i piani decaduti</button>
+              {' '}<button type="button" className="underline" onClick={() => setScheda('decaduti')}>Vedi la scheda Decaduti</button>
             </Avviso></div>
           )}
           {scheda === 'calendario' && <Calendario contribuenti={contribuenti} pratiche={pratiche} onApriPratica={setAperta} />}
+
+          {scheda === 'decaduti' && <Decaduti contribuenti={contribuenti} pratiche={pratiche} onApriPratica={setAperta} onInserisciCartella={inserisciCartella} />}
 
           {(scheda === 'piani' || scheda === 'societa') && <TavolaKpi celle={[
             { titolo: 'Debito residuo', valore: formattaEuro(tot.residuo.totale_cent), nota: `${pratiche.filter(inCorso).length} piani in corso` },
@@ -98,7 +106,6 @@ export default function PaginaTributi() {
                   { valore: 'in_corso', etichetta: `In corso (${conteggio('in_corso')})` },
                   { valore: 'da_completare', etichetta: `Rate da inserire (${conteggio('da_completare')})` },
                   { valore: 'estinti', etichetta: `Estinti (${conteggio('estinti')})` },
-                  { valore: 'decaduti', etichetta: `Decaduti · cartella in arrivo (${conteggio('decaduti')})` },
                   { valore: 'tutte', etichetta: `Tutte (${conteggio('tutte')})` },
                 ]} />
                 <select value={contribuenteScelto} onChange={(e) => setContribuenteScelto(e.target.value)} className="input w-auto">
@@ -149,10 +156,7 @@ export default function PaginaTributi() {
       <Finestra kicker={contribuenti.find((c) => c.id === praticaAperta?.contribuente_id)?.nome} titolo={praticaAperta ? descriviPratica(praticaAperta) : ''} aperta={!!praticaAperta} onChiudi={() => setAperta(null)} larga>
         {praticaAperta && <SchedaPiano pratica={praticaAperta} contribuente={contribuenti.find((c) => c.id === praticaAperta.contribuente_id)}
           onModifica={() => { setEditor({ base: praticaAperta }); setAperta(null) }}
-          onCartellaArrivata={() => {
-            setEditor({ base: null, contribuente: praticaAperta.contribuente_id, tipo: 'cartella', tributo: `Cartella ${praticaAperta.tributo}`, nota: `Cartella per il piano decaduto "${praticaAperta.tributo}"${praticaAperta.decaduto_il ? ` (decaduto il ${formattaData(praticaAperta.decaduto_il)})` : ''}.` })
-            setAperta(null)
-          }} />}
+          onCartellaArrivata={() => { inserisciCartella(praticaAperta); setAperta(null) }} />}
       </Finestra>
 
       <Finestra kicker="Tributi rateizzati" titolo="Piani doppi" aperta={doppi} onChiudi={() => setDoppi(false)} larga>

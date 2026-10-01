@@ -161,23 +161,33 @@ export default function SchedaPiano({ pratica, contribuente, onModifica, onCarte
 
       {errore && <div className="mt-4"><Avviso tipo="errore">{errore}</Avviso></div>}
       {pratica.note && <p className="mt-5 text-[13px] text-neutro-700">Note: {pratica.note}</p>}
+      {/* Rate oltre il termine: il piano rischia la decadenza */}
+      {!soloLettura && !eDecaduto && decadenza === null && pratica.rate.some((x) => situazioneRata(pratica, x, oggi).tipo === 'oltre_termine') && (
+        <div className="mt-5"><Avviso tipo="errore">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>Ci sono rate non pagate oltre il termine: se non sono state pagate, il piano è decaduto e arriverà una cartella esattoriale.</span>
+            <Bottone variante="pericolo" piccolo onClick={() => setDecadenza(oggi)}><FileWarning size={14} /> Segna come decaduto</Bottone>
+          </div>
+        </Avviso></div>
+      )}
+
+      {/* Conferma della decadenza */}
+      {decadenza !== null && (
+        <div className="mt-5 border border-err-bordo bg-err-fondo px-4 py-3 text-[13px] text-err-testo">
+          <div className="mb-2 font-semibold">Segnare il piano come decaduto?</div>
+          <p className="mb-3">Le rate non pagate ({pratica.rate.filter((x) => !x.pagata).length}) escono dal calendario e dalle scadenze; il piano passa nella scheda "Decaduti", in attesa della cartella esattoriale.</p>
+          <span className="flex flex-wrap items-center gap-2">
+            Decaduto il <input type="date" value={decadenza} onChange={(e) => setDecadenza(e.target.value)} className="input w-auto !min-h-[32px] !py-1" />
+            <Bottone variante="pericolo" disabled={inCorso !== null || !decadenza} onClick={async () => { if (await salvaCampi({ stato: 'decaduto', decaduto_il: decadenza!, cartella_arrivata_il: '' }, 'piano decaduto')) setDecadenza(null) }}>Conferma decadenza</Bottone>
+            <Bottone variante="secondario" onClick={() => setDecadenza(null)}>Annulla</Bottone>
+          </span>
+        </div>
+      )}
+
       {!soloLettura && (
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          {decadenza !== null ? (
-            <span className="flex flex-wrap items-center gap-2 text-[13px]">
-              Decaduto il <input type="date" value={decadenza} onChange={(e) => setDecadenza(e.target.value)} className="input w-auto !min-h-[32px] !py-1" />
-              <Bottone variante="pericolo" disabled={inCorso !== null || !decadenza} onClick={async () => { if (await salvaCampi({ stato: 'decaduto', decaduto_il: decadenza!, cartella_arrivata_il: '' }, 'piano decaduto')) setDecadenza(null) }}>Conferma decadenza</Bottone>
-              <Bottone variante="secondario" onClick={() => setDecadenza(null)}>Annulla</Bottone>
-            </span>
-          ) : !confermaElimina
-            ? <span className="flex flex-wrap gap-1">
-                <Bottone variante="ghost" className="!text-accento-900" onClick={() => setConfermaElimina(true)}><Trash2 size={15} /> Elimina piano</Bottone>
-                {!eDecaduto && pratica.rate.some((x) => !x.pagata) && (
-                  <Bottone variante="ghost" className="!text-accento-900" onClick={() => setDecadenza(oggi)} title="Le rate non pagate escono dalle scadenze: arriverà una cartella esattoriale">
-                    <FileWarning size={15} /> Segna come decaduto
-                  </Bottone>
-                )}
-              </span>
+          {!confermaElimina
+            ? <Bottone variante="ghost" className="!text-accento-900" onClick={() => setConfermaElimina(true)}><Trash2 size={15} /> Elimina piano</Bottone>
             : (
               <span className="flex flex-wrap items-center gap-2 text-[13px]">
                 Eliminare il piano {pratica.tributo} di {contribuente?.nome}{pratica.rate.length ? ` con tutte le sue ${pratica.rate.length} rate` : ''}?
@@ -185,11 +195,18 @@ export default function SchedaPiano({ pratica, contribuente, onModifica, onCarte
                 <Bottone variante="secondario" onClick={() => setConfermaElimina(false)}>No</Bottone>
               </span>
             )}
-          {onModifica && (
-            <Bottone variante={pratica.rate.length ? 'secondario' : 'primario'} onClick={onModifica}>
-              {pratica.rate.length ? <><Pencil size={15} /> Modifica piano</> : <><Plus size={15} /> Inserisci il piano (anche da PDF)</>}
-            </Bottone>
-          )}
+          <span className="flex flex-wrap gap-2.5">
+            {!eDecaduto && decadenza === null && pratica.rate.some((x) => !x.pagata) && (
+              <Bottone variante="secondario" onClick={() => setDecadenza(oggi)} title="Le rate non pagate escono dal calendario: il piano va nella scheda Decaduti">
+                <FileWarning size={15} /> Segna come decaduto
+              </Bottone>
+            )}
+            {onModifica && (
+              <Bottone variante={pratica.rate.length ? 'secondario' : 'primario'} onClick={onModifica}>
+                {pratica.rate.length ? <><Pencil size={15} /> Modifica piano</> : <><Plus size={15} /> Inserisci il piano (anche da PDF)</>}
+              </Bottone>
+            )}
+          </span>
         </div>
       )}
       <div className="mt-6 border-t border-divisore pt-5">

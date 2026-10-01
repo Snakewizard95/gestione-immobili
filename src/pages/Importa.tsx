@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import { Avviso, Bottone, IntestazionePagina, Segmentato, Tabella, TavolaKpi } from '../components/ui'
 import ImportaTributi from '../components/tributi/ImportaTributi'
+import ImportaAnagrafica from '../components/tributi/ImportaAnagrafica'
 import { useSoloLettura } from '../components/SoloLettura'
 import { MODO_DEMO } from '../lib/github'
 import { analizzaRendimentiAffitti, preparaImportazione, type PianoImportazione, type RigaImportata } from '../lib/importaExcel'
@@ -25,7 +26,7 @@ export default function PaginaImporta() {
   const [fileLocale, setFileLocale] = useState(false)
   const [nomeFile, setNomeFile] = useState<string | null>(null)
   const soloLettura = useSoloLettura()
-  const [scheda, setScheda] = useState<'affitti' | 'tributi'>('affitti')
+  const [scheda, setScheda] = useState<'affitti' | 'tributi' | 'responsabili'>('affitti')
 
   useEffect(() => {
     if (!import.meta.env.DEV) return
@@ -73,10 +74,12 @@ export default function PaginaImporta() {
       <IntestazionePagina kicker="Strumenti" titolo="Importa da Excel"
         sottotitolo={scheda === 'affitti'
           ? 'Formato riconosciuto: foglio "Rendimenti Affitti". Vengono lette le colonne Proprietà, Immobile, Conduttore, Affitto e Imposta Registro; le altre vengono ignorate.'
-          : 'Tributi rateizzati: scegli i due file Excel ("Tributi in Sospeso" e "Rateizzi Avvisi Bonari"). Prima di importare vedrai un controllo dei totali società per società. Reimportando, le pratiche già presenti vengono saltate.'}
-        azioni={<Segmentato valore={scheda} onChange={setScheda} opzioni={[{ valore: 'affitti', etichetta: 'Affitti' }, { valore: 'tributi', etichetta: 'Tributi rateizzati' }]} />} />
+          : scheda === 'responsabili'
+            ? 'Responsabili tributi: collega a ogni società il responsabile, l\'email e l\'email in copia del foglio "Anagrafica". Non vengono importati piani né avvisi, quindi niente doppioni.'
+            : 'Tributi rateizzati: scegli i file Excel e/o la cartella dei PDF dei piani. Prima di importare vedrai un controllo dei totali società per società. Reimportando, le pratiche già presenti vengono saltate.'}
+        azioni={<Segmentato valore={scheda} onChange={setScheda} opzioni={[{ valore: 'affitti', etichetta: 'Affitti' }, { valore: 'tributi', etichetta: 'Tributi rateizzati' }, { valore: 'responsabili', etichetta: 'Responsabili tributi' }]} />} />
 
-      {scheda === 'tributi' ? <ImportaTributi /> : <>
+      {scheda === 'responsabili' ? <ImportaAnagrafica /> : scheda === 'tributi' ? <ImportaTributi /> : <>
 
       {soloLettura && <div className="mb-5"><Avviso tipo="info">Hai accesso in sola lettura: l'importazione è riservata a chi può modificare i dati.</Avviso></div>}
       <div className="blueprint flex flex-wrap items-center gap-4 !border-dashed p-7">
