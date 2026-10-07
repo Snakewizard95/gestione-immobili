@@ -42,7 +42,10 @@ export default function Calendario({ contribuenti, pratiche, onApriPratica }: { 
   const prossimeSocieta = societa ? vociCalendario(filtrate, oggi, `${Number(oggi.slice(0, 4)) + 1}${oggi.slice(4)}`, oggi).filter((x) => !x.rata.pagata) : []
 
   // Voci del mese: rate in scadenza + recuperi delle rate saltate (alla scadenza della rata successiva)
+  // In ogni data le rate in ordine alfabetico di ufficio (anche i recuperi delle rate saltate), poi tributo e numero di rata
+  const nomeUfficio = (x: VoceCalendario) => contribuenteDi(x.pratica.contribuente_id)?.nome ?? ''
   const delMese = vociCalendario(filtrate, primo, ultimo, oggi)
+    .sort((p, q) => p.data.localeCompare(q.data) || nomeUfficio(p).localeCompare(nomeUfficio(q), 'it') || p.pratica.tributo.localeCompare(q.pratica.tributo, 'it') || p.rata.numero - q.rata.numero)
   const perGiorno = new Map<string, VoceCalendario[]>()
   delMese.forEach((x) => perGiorno.set(x.data, [...(perGiorno.get(x.data) ?? []), x]))
   const nonPagateScadute = tutteLeRate(filtrate).filter((x) => !x.rata.pagata && x.rata.scadenza < oggi)
@@ -99,7 +102,7 @@ export default function Calendario({ contribuenti, pratiche, onApriPratica }: { 
       date: [...new Set(mie.map((x) => x.data))].map((d) => formattaData(d).slice(0, 5)).join(', '),
       t: totaliDi(mie.map((x) => x.rata)), daPagare: totaliDi(mie.filter((x) => !x.rata.pagata).map((x) => x.rata)).totale_cent,
     }
-  }).sort((a, b) => b.daPagare - a.daPagare || a.nome.localeCompare(b.nome, 'it'))
+  }).sort((a, b) => a.nome.localeCompare(b.nome, 'it'))
   type RigaSoc = (typeof perSocieta)[number]
   const rigaTot: RigaSoc = { id: '_tot', nome: 'Totale', responsabile: '', n: delMese.length, date: '', t: totMese, daPagare: daPagareMese.totale_cent }
 
@@ -155,7 +158,7 @@ export default function Calendario({ contribuenti, pratiche, onApriPratica }: { 
             const perUfficio = [...new Set(rate.map((x) => x.pratica.contribuente_id))].map((id) => ({
               id, nome: contribuenteDi(id)?.nome ?? '—', tot: rate.filter((x) => x.pratica.contribuente_id === id).reduce((s, x) => s + x.rata.totale_cent, 0),
               recuperi: rate.filter((x) => x.pratica.contribuente_id === id && x.recupero && !x.rata.pagata).length,
-            })).sort((a, b) => b.tot - a.tot)
+            })).sort((a, b) => a.nome.localeCompare(b.nome, 'it'))
             const st = statoGiorno(data, rate)
             const d = new Date(data + 'T00:00:00Z')
             return (
