@@ -240,6 +240,12 @@ export function situazioneRata(p: PraticaTributo, r: RataTributo, oggi = oggiIso
 /** Voce del calendario: una rata alla sua scadenza, oppure il recupero di una rata saltata alla scadenza della successiva. */
 export interface VoceCalendario extends RataDi { data: string; recupero: boolean }
 
+/** Ordine delle voci: per data, poi ufficio in ordine alfabetico (anche i recuperi), tributo e numero di rata. */
+export function ordinaVoci(voci: VoceCalendario[], nomeUfficio: (id: string) => string): VoceCalendario[] {
+  return voci.sort((p, q) => p.data.localeCompare(q.data) || nomeUfficio(p.pratica.contribuente_id).localeCompare(nomeUfficio(q.pratica.contribuente_id), 'it')
+    || p.pratica.tributo.localeCompare(q.pratica.tributo, 'it') || p.rata.numero - q.rata.numero)
+}
+
 /** Voci del calendario tra due date: rate in scadenza più i recuperi delle rate saltate ancora in tempo. */
 export function vociCalendario(pratiche: PraticaTributo[], da: string, a: string, oggi = oggiIso()): VoceCalendario[] {
   const tutte = tutteLeRate(pratiche)

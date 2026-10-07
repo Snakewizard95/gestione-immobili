@@ -22,7 +22,7 @@ import PaginaComunicazioni from './pages/Comunicazioni'
 import PaginaTributi from './pages/Tributi'
 import PaginaFornitori from './pages/Fornitori'
 import { StampaLetteraIstat } from './pages/StampaDocumenti'
-import StampaTributi from './pages/StampaTributi'
+import StampaTributi, { StampaScadenzaTributi } from './pages/StampaTributi'
 import { StampaFattureFornitori, StampaRoyalty } from './pages/StampaFornitori'
 
 /** Mostra le pagine interne solo se l'utente ha effettuato l'accesso. */
@@ -33,6 +33,7 @@ function AreaProtetta() {
     <Routes>
       <Route path="/stampa/immobile/:id" element={<Guardia sezione="contratti"><SchedaImmobile /></Guardia>} />
       <Route path="/stampa/lettera-istat/:id" element={<Guardia sezione="comunicazioni"><StampaLetteraIstat /></Guardia>} />
+      <Route path="/stampa/tributi-scadenza/:data" element={<Guardia sezione="tributi"><StampaScadenzaTributi /></Guardia>} />
       <Route path="/stampa/tributi/:tipo/:valore" element={<Guardia sezione="tributi"><StampaTributi /></Guardia>} />
       <Route path="/stampa/fornitori/:tipo/:valore" element={<Guardia sezione="fornitori"><StampaFattureFornitori /></Guardia>} />
       <Route path="/stampa/royalty/:fornitore/:anno" element={<Guardia sezione="fornitori"><StampaRoyalty /></Guardia>} />

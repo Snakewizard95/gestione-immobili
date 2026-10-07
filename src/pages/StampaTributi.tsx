@@ -4,13 +4,13 @@
  * Si salva in PDF con "Stampa → Salva come PDF".
  */
 import { Fragment, useState, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Printer } from 'lucide-react'
 import { Bottone, Caricamento } from '../components/ui'
 import logo from '../assets/logo-gruppo.png'
 import { attivi } from '../lib/store'
 import { STATI_PRATICA, TIPI_PRATICA, etichettaDi, type Contribuente, type PraticaTributo } from '../lib/tipi'
-import { daInserire, decaduto, gestita, inCorso, residuoDecaduto, riepilogoPratiche, riepilogoRate, statoEffettivo, termineRegolarizzazione, totaliDi, tutteLeRate, type Totali } from '../lib/tributi'
+import { daInserire, decaduto, gestita, inCorso, ordinaVoci, residuoDecaduto, riepilogoPratiche, riepilogoRate, situazioneRata, statoEffettivo, termineRegolarizzazione, totaliDi, tutteLeRate, vociCalendario, type Totali, type VoceCalendario } from '../lib/tributi'
 import { useCollezioni } from '../lib/useCollezioni'
 import { aggiungiMesi, formattaData, formattaDataOra, formattaEuro, oggiIso } from '../lib/utils/formato'
 import { giorniTra } from '../lib/ravvedimento'
@@ -174,6 +174,142 @@ export default function StampaTributi() {
       {scelti.length === 0
         ? <div className="p-10">Nessun ufficio da stampare. <Link to="/tributi" className="underline">Torna ai tributi</Link></div>
         : scelti.map((c, i) => <SchedaUfficio key={c.id} c={c} pratiche={pratiche} mesi={mesi} prima={i === 0} />)}
+    </div>
+  )
+}
+
+/* ---------------------------- scheda di una scadenza del calendario ---------------------------- */
+
+const GIORNI_LUNGHI = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato']
+const MESI_LUNGHI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
+
+/** Stato di una voce in stampa (come nel calendario, in testo). */
+function statoVoce(x: VoceCalendario, oggi: string): { testo: string; rosso?: boolean; giallo?: boolean } {
+  if (x.rata.pagata) return { testo: x.rata.pagata_il ? `Pagata il ${formattaData(x.rata.pagata_il)}` : 'Pagata' }
+  if (x.recupero) return { testo: 'Da saldare con riconteggio', giallo: true }
+  const s = situazioneRata(x.pratica, x.rata, oggi)
+  if (s.tipo === 'da_recuperare') return { testo: `Non pagata · recuperare entro ${formattaData(s.entro)}`, giallo: true }
+  if (s.tipo === 'oltre_termine') return { testo: x.pratica.tipo === 'avviso_bonario' ? 'Termine superato' : 'Scaduta', rosso: true }
+  return { testo: 'Da pagare' }
+}
+
+/**
+ * Scheda stampabile di una scadenza del calendario: tutte le rate di quel giorno (con i recuperi delle rate saltate),
+ * in ordine alfabetico di ufficio, con capitale, sanzioni, interessi, totale e stato; subtotale per ufficio e totali.
+ * Rispetta i filtri del calendario (responsabile, società). A4 verticale.
+ */
+export function StampaScadenzaTributi() {
+  const { data = '' } = useParams()
+  const [cerca] = useSearchParams()
+  const responsabile = cerca.get('responsabile') ?? ''
+  const societa = cerca.get('societa') ?? ''
+  const { dati, caricamento } = useCollezioni(['contribuenti', 'pratiche_tributi'])
+  const oggi = oggiIso()
+  const contribuenti = attivi(dati<Contribuente>('contribuenti'))
+  const cDi = (id: string) => contribuenti.find((c) => c.id === id)
+  const pratiche = attivi(dati<PraticaTributo>('pratiche_tributi')).filter(gestita)
+    .filter((p) => (!responsabile || cDi(p.contribuente_id)?.responsabile === responsabile) && (!societa || p.contribuente_id === societa))
+  const voci = ordinaVoci(vociCalendario(pratiche, data, data, oggi), (id) => cDi(id)?.nome ?? '')
+  const indietro = `/tributi?${new URLSearchParams({ mese: data.slice(0, 7), ...(responsabile ? { responsabile } : {}), ...(societa ? { societa } : {}) }).toString()}`
+
+  if (caricamento && voci.length === 0) return <div className="p-10"><Caricamento /></div>
+
+  const d = new Date(data + 'T00:00:00Z')
+  const titolo = /^\d{4}-\d{2}-\d{2}$/.test(data) ? `${GIORNI_LUNGHI[d.getUTCDay()]} ${d.getUTCDate()} ${MESI_LUNGHI[d.getUTCMonth()]} ${d.getUTCFullYear()}` : data
+  const tutte = totaliDi(voci.map((x) => x.rata))
+  const daPagare = voci.filter((x) => !x.rata.pagata)
+  const pagate = voci.filter((x) => x.rata.pagata)
+  const recuperi = daPagare.filter((x) => x.recupero)
+  const uffici = [...new Set(voci.map((x) => x.pratica.contribuente_id))]
+  const cella = 'px-1.5 py-[5px]'
+  const num = `${cella} num text-right whitespace-nowrap`
+
+  return (
+    <div className="min-h-screen bg-sfondo print:bg-white">
+      <style>{'@media print { @page { size: A4 portrait; margin: 10mm; } }'}</style>
+      <div className="no-stampa sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-divisore bg-sfondo px-6 py-3">
+        <Link to={indietro} className="btn btn-ghost no-underline"><ArrowLeft size={16} /> Torna al calendario</Link>
+        <Bottone className="ml-auto" onClick={() => window.print()} disabled={voci.length === 0}><Printer size={16} /> Stampa / salva PDF</Bottone>
+      </div>
+      <div className="pagina-stampa ombra-md mx-auto my-8 max-w-[794px] bg-white px-6 py-8 text-sm md:px-10 print:my-0 print:px-0 print:py-0" style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
+        <header className="flex items-start justify-between gap-6 border-b-2 border-testo pb-3">
+          <div className="min-w-0">
+            <div className="kicker">Tributi rateizzati · scadenza</div>
+            <h1 className="mt-1 text-[30px] first-letter:uppercase">{titolo}</h1>
+            <div className="mt-1 text-[13px] text-neutro-700">
+              {[`${voci.length} ${voci.length === 1 ? 'rata' : 'rate'} di ${uffici.length} ${uffici.length === 1 ? 'ufficio' : 'uffici'}`, responsabile && `Responsabile: ${responsabile}`, societa && cDi(societa)?.nome].filter(Boolean).join(' · ')}
+            </div>
+          </div>
+          <div className="flex-none text-right text-xs text-neutro-700">
+            <img src={logo} alt="Gruppo CEC Bigoli" className="mb-2 ml-auto h-11 w-[170px] object-cover" />
+            Situazione al {formattaDataOra(new Date().toISOString())}
+          </div>
+        </header>
+
+        {voci.length === 0 ? <p className="mt-6">Nessuna rata in questa data.</p> : <>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <Box titolo="Totale della scadenza" t={tutte} nota={`${voci.length} rate`} />
+            <Box titolo="Da pagare" t={totaliDi(daPagare.map((x) => x.rata))} nota={`${daPagare.length} rate${recuperi.length ? ` (di cui ${recuperi.length === 1 ? '1 recupero' : `${recuperi.length} recuperi`}: più sanzione e interessi del riconteggio)` : ''}`} />
+            <Box titolo="Già pagato" t={totaliDi(pagate.map((x) => x.rata))} nota={`${pagate.length} rate`} />
+          </div>
+
+          <table className="mt-5 w-full border-collapse text-[11.5px]">
+            <thead>
+              <tr className="border-b border-testo text-left text-[9.5px] uppercase tracking-[0.06em] text-attenuato">
+                <th className={`${cella} font-medium`}>Ufficio</th><th className={`${cella} font-medium`}>Tributo</th><th className={`${cella} font-medium`}>Rata</th>
+                <th className={`${cella} text-right font-medium`}>Capitale</th><th className={`${cella} text-right font-medium`}>Sanzioni</th>
+                <th className={`${cella} text-right font-medium`}>Interessi</th><th className={`${cella} text-right font-medium`}>Totale</th><th className={`${cella} font-medium`}>Stato</th>
+              </tr>
+            </thead>
+            {uffici.map((id) => {
+              const mie = voci.filter((x) => x.pratica.contribuente_id === id)
+              const t = totaliDi(mie.map((x) => x.rata))
+              const c = cDi(id)
+              return (
+                <tbody key={id} style={{ breakInside: 'avoid' }} className="border-b border-divisore">
+                  {mie.map((x, k) => {
+                    const st = statoVoce(x, oggi)
+                    return (
+                      <tr key={`${x.pratica.id}-${x.rata.numero}${x.recupero ? '-r' : ''}`} className={`${k > 0 ? 'border-t border-riga' : ''} ${x.recupero && !x.rata.pagata ? 'bg-att-fondo' : ''}`}>
+                        <td className={`${cella} align-top`}>{k === 0 && <><b className="text-[12.5px]">{c?.nome ?? '—'}</b>{c?.responsabile && <div className="text-[10.5px] text-neutro-700">{c.responsabile}</div>}</>}</td>
+                        <td className={cella}>{x.pratica.tributo}</td>
+                        <td className={`${cella} whitespace-nowrap`}>{x.recupero ? `Recupero ${x.rata.numero}/${x.pratica.rate.length} del ${formattaData(x.rata.scadenza)}` : `${x.rata.numero}/${x.pratica.rate.length}`}</td>
+                        <td className={num}>{formattaEuro(x.rata.quota_capitale_cent)}</td>
+                        <td className={num}>{formattaEuro(x.rata.sanzioni_cent)}</td>
+                        <td className={num}>{formattaEuro(x.rata.interessi_cent)}</td>
+                        <td className={`${num} font-semibold`}>{formattaEuro(x.rata.totale_cent)}{x.recupero && !x.rata.pagata ? ' +' : ''}</td>
+                        <td className={`${cella} text-[11px] ${st.rosso ? 'font-semibold text-err-testo' : st.giallo ? 'text-att-testo' : ''}`}>{st.testo}</td>
+                      </tr>
+                    )
+                  })}
+                  {mie.length > 1 && (
+                    <tr className="border-t border-riga text-neutro-700">
+                      <td className={cella} /><td className={`${cella} text-[11px]`} colSpan={2}>Totale {c?.nome}</td>
+                      <td className={num}>{formattaEuro(t.quota_capitale_cent)}</td><td className={num}>{formattaEuro(t.sanzioni_cent)}</td>
+                      <td className={num}>{formattaEuro(t.interessi_cent)}</td><td className={`${num} font-semibold text-testo`}>{formattaEuro(t.totale_cent)}</td><td className={cella} />
+                    </tr>
+                  )}
+                </tbody>
+              )
+            })}
+            <tbody>
+              <tr className="border-t-2 border-testo font-semibold">
+                <td className={cella} colSpan={3}>Totale della scadenza</td>
+                <td className={num}>{formattaEuro(tutte.quota_capitale_cent)}</td><td className={num}>{formattaEuro(tutte.sanzioni_cent)}</td>
+                <td className={num}>{formattaEuro(tutte.interessi_cent)}</td><td className={num}>{formattaEuro(tutte.totale_cent)}</td><td className={cella} />
+              </tr>
+            </tbody>
+          </table>
+          {recuperi.length > 0 && (
+            <p className="mt-3 text-[11px] text-neutro-700">
+              Le righe evidenziate ("+") sono rate saltate da saldare entro questa data: all'importo della rata vanno aggiunti sanzione e interessi del riconteggio (ravvedimento).
+            </p>
+          )}
+          <p className="mt-6 border-t border-divisore pt-3 text-[10.5px] text-neutro-600">
+            Prospetto riassuntivo a uso interno: fanno fede i documenti dell'Agenzia delle Entrate e dell'Agenzia Entrate-Riscossione.
+          </p>
+        </>}
+      </div>
     </div>
   )
 }

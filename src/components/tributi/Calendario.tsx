@@ -4,10 +4,11 @@
  * Sotto: totali del mese scomposti e riepilogo del mese per società (per organizzare la cassa).
  */
 import { useState } from 'react'
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Printer } from 'lucide-react'
 import { useSessioneAttiva } from '../../lib/sessione'
 import type { Contribuente, PraticaTributo } from '../../lib/tipi'
-import { impostaRatePagate, situazioneRata, totaliDi, tutteLeRate, vociCalendario, type RataDi, type VoceCalendario } from '../../lib/tributi'
+import { impostaRatePagate, ordinaVoci, situazioneRata, totaliDi, tutteLeRate, vociCalendario, type RataDi, type VoceCalendario } from '../../lib/tributi'
 import { formattaData, formattaEuro, oggiIso } from '../../lib/utils/formato'
 import { useSoloLettura } from '../SoloLettura'
 import { Avviso, Bottone, Etichetta, Riquadro, Tabella, TavolaKpi, Vuoto } from '../ui'
@@ -24,10 +25,12 @@ export default function Calendario({ contribuenti, pratiche, onApriPratica }: { 
   const { token, nome } = useSessioneAttiva()
   const soloLettura = useSoloLettura()
   const oggi = oggiIso()
-  const [mese, setMese] = useState(oggi.slice(0, 7))            // "AAAA-MM"
+  // Tornando dalla stampa di una scadenza mese e filtri arrivano dall'indirizzo
+  const [parametri] = useSearchParams()
+  const [mese, setMese] = useState(/^\d{4}-\d{2}$/.test(parametri.get('mese') ?? '') ? parametri.get('mese')! : oggi.slice(0, 7))            // "AAAA-MM"
   const [giorno, setGiorno] = useState<string | null>(null)
-  const [responsabile, setResponsabile] = useState('')
-  const [societa, setSocieta] = useState('')
+  const [responsabile, setResponsabile] = useState(parametri.get('responsabile') ?? '')
+  const [societa, setSocieta] = useState(parametri.get('societa') ?? '')
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, setInCorso] = useState(false)
 
@@ -43,9 +46,8 @@ export default function Calendario({ contribuenti, pratiche, onApriPratica }: { 
 
   // Voci del mese: rate in scadenza + recuperi delle rate saltate (alla scadenza della rata successiva)
   // In ogni data le rate in ordine alfabetico di ufficio (anche i recuperi delle rate saltate), poi tributo e numero di rata
-  const nomeUfficio = (x: VoceCalendario) => contribuenteDi(x.pratica.contribuente_id)?.nome ?? ''
-  const delMese = vociCalendario(filtrate, primo, ultimo, oggi)
-    .sort((p, q) => p.data.localeCompare(q.data) || nomeUfficio(p).localeCompare(nomeUfficio(q), 'it') || p.pratica.tributo.localeCompare(q.pratica.tributo, 'it') || p.rata.numero - q.rata.numero)
+  const delMese = ordinaVoci(vociCalendario(filtrate, primo, ultimo, oggi), (id) => contribuenteDi(id)?.nome ?? '')
+  const filtriStampa = new URLSearchParams({ ...(responsabile ? { responsabile } : {}), ...(societa ? { societa } : {}) }).toString()
   const perGiorno = new Map<string, VoceCalendario[]>()
   delMese.forEach((x) => perGiorno.set(x.data, [...(perGiorno.get(x.data) ?? []), x]))
   const nonPagateScadute = tutteLeRate(filtrate).filter((x) => !x.rata.pagata && x.rata.scadenza < oggi)
@@ -163,8 +165,9 @@ export default function Calendario({ contribuenti, pratiche, onApriPratica }: { 
             const d = new Date(data + 'T00:00:00Z')
             return (
               <div key={data} className={i > 0 ? 'border-t border-divisore' : ''}>
+                <div className="flex items-stretch">
                 <button type="button" onClick={() => setGiorno(aperto ? null : data)} aria-expanded={aperto}
-                  className={`flex w-full flex-wrap items-center gap-x-6 gap-y-2 border-l-4 px-4 py-3.5 text-left hover:bg-[rgba(29,31,32,0.04)] ${st.bordo} ${aperto ? 'bg-[rgba(89,128,166,0.08)]' : ''}`}>
+                  className={`flex min-w-0 flex-1 flex-wrap items-center gap-x-6 gap-y-2 border-l-4 px-4 py-3.5 text-left hover:bg-[rgba(29,31,32,0.04)] ${st.bordo} ${aperto ? 'bg-[rgba(89,128,166,0.08)]' : ''}`}>
                   <span className="flex w-[92px] flex-none items-baseline gap-2">
                     <span className={`num font-titolo text-[30px] font-semibold leading-none ${data === oggi ? 'text-accento-700' : ''}`}>{d.getUTCDate()}</span>
                     <span className="text-[11px] uppercase leading-tight tracking-[0.06em] text-neutro-700">{GIORNI[d.getUTCDay()]}<br />{MESI[m - 1].slice(0, 3)}</span>
@@ -179,6 +182,11 @@ export default function Calendario({ contribuenti, pratiche, onApriPratica }: { 
                     {aperto ? <ChevronUp size={18} className="text-neutro-600" /> : <ChevronDown size={18} className="text-neutro-600" />}
                   </span>
                 </button>
+                <Link to={`/stampa/tributi-scadenza/${data}${filtriStampa ? `?${filtriStampa}` : ''}`} title="Scheda stampabile di questa scadenza"
+                  className={`flex flex-none items-center gap-1.5 border-l border-divisore px-3 text-[12px] text-accento-700 no-underline hover:bg-[rgba(89,128,166,0.08)] ${aperto ? 'bg-[rgba(89,128,166,0.08)]' : ''}`}>
+                  <Printer size={14} /> Scheda
+                </Link>
+                </div>
                 {aperto && (
                   <div className="border-l-4 border-transparent px-4 pb-5 pt-1">
                     <div className="mb-3 flex justify-end">
